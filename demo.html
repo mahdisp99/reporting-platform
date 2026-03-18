@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P&L Report - Demo</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --color-primary: #2563eb;
+      --color-success: #10b981;
+      --color-danger: #ef4444;
+      --color-gray-50: #f9fafb;
+      --color-gray-100: #f3f4f6;
+      --color-gray-200: #e5e7eb;
+      --color-gray-300: #d1d5db;
+      --color-gray-500: #6b7280;
+      --color-gray-700: #374151;
+      --color-gray-900: #111827;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: var(--color-gray-50);
+    }
+    .pnl-report { max-width: 1400px; margin: 0 auto; }
+    .report-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--color-gray-200); }
+    .report-header h1 { margin: 0 0 8px 0; font-size: 28px; }
+    .report-subtitle { margin: 0; color: var(--color-gray-500); }
+    .report-layout { display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .report-layout { grid-template-columns: 1fr; } }
+    .config-panel { background: white; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--color-gray-200); padding: 20px; }
+    .report-content { background: white; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--color-gray-200); overflow: hidden; }
+    .pnl-toolbar { display: flex; justify-content: space-between; padding: 12px 20px; background: var(--color-gray-50); border-bottom: 1px solid var(--color-gray-200); }
+    .btn { padding: 8px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid var(--color-gray-200); background: white; }
+    .btn-primary { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+    .config-section h3 { margin: 0 0 20px 0; font-size: 16px; color: var(--color-gray-700); }
+    .selector { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--color-gray-100); }
+    .selector-title { margin: 0 0 12px 0; font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--color-gray-500); }
+    .dimension-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .dimension-btn { padding: 6px 12px; border: 1px solid var(--color-gray-200); background: white; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .dimension-btn.selected { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+    .pnl-summary { padding: 20px; background: linear-gradient(135deg, var(--color-gray-50) 0%, white 100%); border-bottom: 1px solid var(--color-gray-200); }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .summary-item { padding: 16px; background: white; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid var(--color-gray-100); }
+    .summary-label { font-size: 12px; color: var(--color-gray-500); }
+    .summary-value { font-size: 20px; font-weight: 600; font-family: monospace; }
+    .summary-value.negative { color: var(--color-danger); }
+    .pnl-table-container { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+    .pnl-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .pnl-table th, .pnl-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--color-gray-100); }
+    .pnl-table th { background: var(--color-gray-50); font-weight: 600; position: sticky; top: 0; }
+    .pnl-table td { font-family: monospace; }
+    .metric-cell { text-align: right; }
+    .cell-variance { font-size: 10px; margin-left: 6px; }
+    .variance-positive { color: var(--color-success); }
+    .variance-negative { color: var(--color-danger); }
+    .data-row:hover { background: var(--color-gray-50); }
+    .data-row.total { background: var(--color-gray-100); font-weight: 600; }
+    .expand-btn { width: 18px; height: 18px; border: none; background: transparent; cursor: pointer; font-size: 10px; margin-right: 6px; }
+    .dimension-cell { display: flex; align-items: center; }
+    .report-footer { padding: 12px 20px; background: var(--color-gray-50); border-top: 1px solid var(--color-gray-200); font-size: 12px; color: var(--color-gray-500); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    // Dimension definitions
+    const PRODUCT_HIERARCHY = [
+      { id: 'category_l1', name: 'Category', field: 'category_level_1', level: 0 },
+      { id: 'category_l2', name: 'Subcategory', field: 'category_level_2', level: 1 },
+      { id: 'item_id', name: 'Item', field: 'item_id', level: 2 },
+    ];
+
+    const GEOGRAPHY_HIERARCHY = [
+      { id: 'province', name: 'Province', field: 'province', level: 0 },
+      { id: 'city', name: 'City', field: 'city', level: 1 },
+      { id: 'store_id', name: 'Store', field: 'store_id', level: 2 },
+    ];
+
+    const TIME_HIERARCHY = [
+      { id: 'quarter', name: 'Quarter', field: 'quarter', level: 0 },
+      { id: 'month', name: 'Month', field: 'month', level: 1 },
+    ];
+
+    const METRICS = [
+      { id: 'revenue', name: 'Revenue', format: 'currency' },
+      { id: 'cost_of_goods', name: 'Cost of Goods', format: 'currency' },
+      { id: 'gross_profit', name: 'Gross Profit', format: 'currency', calculated: true },
+      { id: 'gross_margin', name: 'Gross Margin %', format: 'percent', calculated: true },
+    ];
+
+    // Mock data
+    const MOCK_DATA = [
+      { category: 'Electronics', subcategory: 'Phones', q1_revenue: 80000, q1_cog: 48000, q2_revenue: 95000, q2_cog: 57000, children: [
+        { category: 'Electronics', subcategory: 'Phones', item: 'iPhone 15', q1_revenue: 50000, q1_cog: 30000, q2_revenue: 60000, q2_cog: 36000 },
+        { category: 'Electronics', subcategory: 'Phones', item: 'Samsung S24', q1_revenue: 30000, q1_cog: 18000, q2_revenue: 35000, q2_cog: 21000 },
+      ]},
+      { category: 'Electronics', subcategory: 'Laptops', q1_revenue: 70000, q1_cog: 42000, q2_revenue: 80000, q2_cog: 48000 },
+      { category: 'Clothing', subcategory: 'Shirts', q1_revenue: 40000, q1_cog: 20000, q2_revenue: 45000, q2_cog: 22500 },
+      { category: 'Clothing', subcategory: 'Pants', q1_revenue: 40000, q1_cog: 20000, q2_revenue: 50000, q2_cog: 25000 },
+    ];
+
+    function formatValue(value, format) {
+      if (format === 'currency') return '$' + value.toLocaleString();
+      if (format === 'percent') return value.toFixed(2) + '%';
+      return value.toLocaleString();
+    }
+
+    function calculateGrossProfit(revenue, cog) {
+      return revenue - cog;
+    }
+
+    function calculateGrossMargin(revenue, cog) {
+      return revenue > 0 ? ((revenue - cog) / revenue) * 100 : 0;
+    }
+
+    function DimensionSelector({ title, dimensions, selected, onChange }) {
+      return (
+        <div className="selector">
+          <h5 className="selector-title">{title}</h5>
+          <div className="dimension-list">
+            {dimensions.map(dim => (
+              <button
+                key={dim.id}
+                className={`dimension-btn ${selected.some(s => s.id === dim.id) ? 'selected' : ''}`}
+                onClick={() => {
+                  const isSelected = selected.some(s => s.id === dim.id);
+                  if (isSelected) {
+                    onChange(selected.filter(s => s.id !== dim.id));
+                  } else {
+                    onChange([...selected, dim]);
+                  }
+                }}
+              >
+                {dim.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function PnLSummary({ data }) {
+      const totals = useMemo(() => {
+        const t = { revenue: 0, cog: 0 };
+        data.forEach(row => {
+          t.revenue += row.q1_revenue + row.q2_revenue;
+          t.cog += row.q1_cog + row.q2_cog;
+        });
+        return {
+          revenue: t.revenue,
+          cog: t.cog,
+          profit: t.revenue - t.cog,
+          margin: t.revenue > 0 ? ((t.revenue - t.cog) / t.revenue) * 100 : 0
+        };
+      }, [data]);
+
+      return (
+        <div className="pnl-summary">
+          <h3>P&L Summary</h3>
+          <div className="summary-grid">
+            <div className="summary-item">
+              <div className="summary-label">Total Revenue</div>
+              <div className="summary-value">{formatValue(totals.revenue, 'currency')}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">Cost of Goods</div>
+              <div className="summary-value">{formatValue(totals.cog, 'currency')}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">Gross Profit</div>
+              <div className="summary-value">{formatValue(totals.profit, 'currency')}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">Gross Margin</div>
+              <div className="summary-value">{formatValue(totals.margin, 'percent')}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function PnLTable({ data, expandedRows, onToggleExpand }) {
+      const columns = [
+        { key: 'q1', title: 'Q1 2024' },
+        { key: 'q2', title: 'Q2 2024' },
+        { key: 'total', title: 'Total' },
+      ];
+
+      function renderRow(row, level = 0, isChild = false) {
+        const isExpanded = expandedRows.has(row.category + row.subcategory);
+        const hasChildren = row.children && row.children.length > 0;
+
+        return (
+          <React.Fragment key={row.category + row.subcategory + (row.item || '')}>
+            <tr className={`data-row ${!isChild ? 'total' : ''}`}>
+              <td className="dimension-cell" style={{ paddingLeft: 12 + level * 20 }}>
+                {hasChildren && (
+                  <button className="expand-btn" onClick={() => onToggleExpand(row.category + row.subcategory)}>
+                    {isExpanded ? '▼' : '▶'}
+                  </button>
+                )}
+                {row.item || row.subcategory || row.category}
+              </td>
+              {columns.map(col => {
+                let revenue, cog;
+                if (col.key === 'total') {
+                  revenue = row.q1_revenue + row.q2_revenue;
+                  cog = row.q1_cog + row.q2_cog;
+                } else {
+                  revenue = row[col.key + '_revenue'];
+                  cog = row[col.key + '_cog'];
+                }
+                const profit = calculateGrossProfit(revenue, cog);
+                const margin = calculateGrossMargin(revenue, cog);
+
+                return (
+                  <React.Fragment key={col.key}>
+                    <td className="metric-cell">{formatValue(revenue, 'currency')}</td>
+                    <td className="metric-cell">{formatValue(cog, 'currency')}</td>
+                    <td className="metric-cell">{formatValue(profit, 'currency')}</td>
+                    <td className="metric-cell">{formatValue(margin, 'percent')}</td>
+                  </React.Fragment>
+                );
+              })}
+            </tr>
+            {isExpanded && row.children && row.children.map(child => renderRow(child, level + 1, true))}
+          </React.Fragment>
+        );
+      }
+
+      return (
+        <div className="pnl-table-container">
+          <table className="pnl-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                {columns.map(col => (
+                  <React.Fragment key={col.key}>
+                    <th colSpan="4" style={{textAlign: 'center'}}>{col.title}</th>
+                  </React.Fragment>
+                ))}
+              </tr>
+              <tr>
+                <th></th>
+                {columns.map(col => (
+                  <React.Fragment key={col.key}>
+                    <th>Revenue</th>
+                    <th>COGS</th>
+                    <th>Profit</th>
+                    <th>Margin</th>
+                  </React.Fragment>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.map(row => renderRow(row))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    function PnLReport() {
+      const [rowDims, setRowDims] = useState([PRODUCT_HIERARCHY[0]]);
+      const [colDims, setColDims] = useState([TIME_HIERARCHY[0]]);
+      const [expandedRows, setExpandedRows] = useState(new Set());
+
+      const toggleExpand = (key) => {
+        setExpandedRows(prev => {
+          const next = new Set(prev);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        });
+      };
+
+      return (
+        <div className="pnl-report">
+          <header className="report-header">
+            <h1>Profit & Loss Report</h1>
+            <p className="report-subtitle">Analyze revenue, costs, and profitability across dimensions</p>
+          </header>
+
+          <div className="report-layout">
+            <aside className="config-panel">
+              <div className="config-section">
+                <h3>Configuration</h3>
+                <DimensionSelector
+                  title="Row Dimensions"
+                  dimensions={PRODUCT_HIERARCHY}
+                  selected={rowDims}
+                  onChange={setRowDims}
+                />
+                <DimensionSelector
+                  title="Column Dimensions"
+                  dimensions={TIME_HIERARCHY}
+                  selected={colDims}
+                  onChange={setColDims}
+                />
+              </div>
+            </aside>
+
+            <main className="report-content">
+              <div className="pnl-toolbar">
+                <div>
+                  <button className="btn btn-primary">↻ Refresh</button>
+                </div>
+                <div>
+                  <span style={{fontSize: 12, color: '#6b7280', marginRight: 8}}>Export:</span>
+                  <button className="btn">CSV</button>
+                  <button className="btn">Excel</button>
+                  <button className="btn">PDF</button>
+                </div>
+              </div>
+
+              <PnLSummary data={MOCK_DATA} />
+              <PnLTable data={MOCK_DATA} expandedRows={expandedRows} onToggleExpand={toggleExpand} />
+
+              <div className="report-footer">
+                Generated: {new Date().toLocaleString()} • 4 rows
+              </div>
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PnLReport />);
+  </script>
+</body>
+</html>

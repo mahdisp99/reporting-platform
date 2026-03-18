@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>گزارش سود و زیان - باسلام</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+    :root {
+      --color-primary: #2563eb;
+      --color-success: #10b981;
+      --color-danger: #ef4444;
+      --color-gray-50: #f9fafb;
+      --color-gray-100: #f3f4f6;
+      --color-gray-200: #e5e7eb;
+      --color-gray-500: #6b7280;
+      --color-gray-700: #374151;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      margin: 0; padding: 24px;
+      background: var(--color-gray-50);
+      direction: rtl;
+    }
+    .pnl-report { max-width: 1600px; margin: 0 auto; }
+    .report-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--color-gray-200); text-align: center; }
+    .report-header h1 { margin: 0 0 8px 0; font-size: 28px; }
+    .report-subtitle { margin: 0; color: var(--color-gray-500); font-size: 14px; }
+    .report-layout { display: grid; grid-template-columns: 340px 1fr; gap: 24px; }
+    @media (max-width: 1024px) { .report-layout { grid-template-columns: 1fr; } }
+    .config-panel { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--color-gray-200); padding: 20px; }
+    .report-content { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--color-gray-200); overflow: hidden; }
+    .pnl-toolbar { display: flex; justify-content: space-between; padding: 12px 20px; background: var(--color-gray-50); border-bottom: 1px solid var(--color-gray-200); direction: ltr; }
+    .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid var(--color-gray-200); background: white; font-family: inherit; }
+    .btn-primary { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+    .selector { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--color-gray-100); }
+    .selector-title { margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: var(--color-gray-600); }
+    .dimension-list { display: flex; flex-direction: column; gap: 8px; }
+    .dimension-btn { padding: 10px 14px; border: 1px solid var(--color-gray-200); background: white; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; text-align: right; }
+    .dimension-btn.selected { background: var(--color-primary); border-color: var(--color-primary); color: white; }
+    .filter-section { margin-bottom: 16px; }
+    .filter-label { display: block; font-size: 12px; color: var(--color-gray-500); margin-bottom: 6px; }
+    .filter-select { width: 100%; padding: 8px 12px; border: 1px solid var(--color-gray-200); border-radius: 6px; font-family: inherit; font-size: 13px; }
+    .active-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .filter-tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #dbeafe; color: var(--color-primary); border-radius: 20px; font-size: 11px; }
+    .filter-tag button { background: none; border: none; cursor: pointer; font-size: 14px; padding: 0; width: 16px; }
+    .clear-filters { margin-top: 12px; width: 100%; padding: 8px; background: var(--color-gray-100); border: none; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12px; }
+    .pnl-summary { padding: 24px; background: linear-gradient(135deg, #f0f9ff 0%, #ffffff 100%); border-bottom: 1px solid var(--color-gray-200); }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+    .summary-item { padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid var(--color-gray-100); text-align: center; }
+    .summary-label { font-size: 12px; color: var(--color-gray-500); margin-bottom: 8px; }
+    .summary-value { font-size: 22px; font-weight: 700; font-family: 'Vazirmatn', monospace; }
+    .summary-value.negative { color: var(--color-danger); }
+    .summary-value.positive { color: var(--color-success); }
+    .pnl-table-container { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+    .pnl-table { width: 100%; border-collapse: collapse; font-size: 13px; direction: rtl; }
+    .pnl-table th, .pnl-table td { padding: 12px 14px; text-align: right; border-bottom: 1px solid var(--color-gray-100); white-space: nowrap; }
+    .pnl-table th { background: var(--color-gray-50); font-weight: 600; position: sticky; top: 0; z-index: 10; }
+    .metric-cell { text-align: left; direction: ltr; }
+    .section-header { background: #f8fafc; }
+    .metric-section { font-weight: 600; color: var(--color-gray-600); font-size: 11px; text-transform: uppercase; }
+    .cell-value.negative { color: var(--color-danger); }
+    .report-footer { padding: 16px 24px; background: var(--color-gray-50); border-top: 1px solid var(--color-gray-200); font-size: 12px; color: var(--color-gray-500); text-align: center; }
+    .view-toggle { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-gray-200); }
+    .view-btn { flex: 1; padding: 10px; border: 1px solid var(--color-gray-200); background: white; border-radius: 8px; cursor: pointer; font-family: inherit; }
+    .view-btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+    .empty-state { padding: 60px; text-align: center; color: var(--color-gray-400); }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const toPersianDigits = (str) => {
+      const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+      return str.toString().replace(/\d/g, (d) => persianDigits[parseInt(d)]);
+    };
+
+    const formatCurrency = (value) => {
+      if (value === null || value === undefined) return '-';
+      const absValue = Math.abs(value);
+      const formatted = new Intl.NumberFormat('en-US').format(absValue);
+      return (value < 0 ? '-' : '') + toPersianDigits(formatted) + ' ریال';
+    };
+
+    const formatPercent = (value) => toPersianDigits(value.toFixed(2)) + '%';
+
+    const DIMENSIONS = [
+      { id: 'cat_lvl1', name: 'دسته‌بندی سطح ۱', field: 'cat_lvl1' },
+      { id: 'cat_lvl2', name: 'دسته‌بندی سطح ۲', field: 'cat_lvl2' },
+      { id: 'customer_province', name: 'استان مشتری', field: 'customer_province' },
+      { id: 'vendor_province', name: 'استان فروشنده', field: 'vendor_province' },
+    ];
+
+    const FILTER_OPTIONS = {
+      cat_lvl1: ['کالای دیجیتال', 'مد و پوشاک', 'خوردنی و آشامیدنی', 'خانه و آشپزخانه'],
+      cat_lvl2: ['موبایل', 'لپ‌تاپ', 'هدفون', 'پیراهن', 'شلوار', 'کفش', 'میوه', 'نوشیدنی'],
+      customer_province: ['تهران', 'اصفهان', 'شیراز', 'مشهد'],
+      vendor_province: ['تهران', 'اصفهان', 'شیراز', 'مشهد'],
+    };
+
+    const PNL_SECTIONS = [
+      { title: 'Volume Metrics', metrics: [
+        { id: 'orders', name: 'Orders', format: 'integer' },
+        { id: 'items', name: 'Items', format: 'integer' },
+        { id: 'aov', name: 'AOV', format: 'currency' },
+      ]},
+      { title: 'GMV & NMV', metrics: [
+        { id: 'gmv', name: 'GMV', format: 'currency' },
+        { id: 'refunds', name: 'Refunds', format: 'currency', isNegative: true },
+        { id: 'delivery_costs', name: 'Delivery Costs', format: 'currency', isNegative: true },
+        { id: 'vendor_discounts', name: 'Vendor Discounts', format: 'currency', isNegative: true },
+        { id: 'nmv', name: 'NMV', format: 'currency' },
+      ]},
+      { title: 'Main Revenue', metrics: [
+        { id: 'commission', name: 'Commission', format: 'currency' },
+        { id: 'ads', name: 'Ads', format: 'currency' },
+        { id: 'main_revenue', name: 'Main Revenue', format: 'currency' },
+      ]},
+      { title: 'Cost of Revenue', metrics: [
+        { id: 'cost_of_revenue', name: 'Cost of Revenue', format: 'currency', isNegative: true },
+        { id: 'vochers_crc', name: 'Vochers CRC', format: 'currency', isNegative: true },
+        { id: 'general_cost_crc', name: 'General Cost CRC', format: 'currency', isNegative: true },
+        { id: 'marketing_crc', name: 'Marketing CRC', format: 'currency', isNegative: true },
+        { id: 'vat', name: 'VAT', format: 'currency', isNegative: true },
+        { id: 'pc1', name: 'PC1', format: 'currency' },
+      ]},
+      { title: 'Fees', metrics: [
+        { id: 'signup_fee', name: 'Signup Fee', format: 'currency' },
+        { id: 'penalty_fee', name: 'Penalty Fee', format: 'currency' },
+        { id: 'platform_fee', name: 'Platform Fee', format: 'currency' },
+        { id: 'total_fee', name: 'Total Fee', format: 'currency' },
+      ]},
+      { title: 'Customer Support', metrics: [
+        { id: 'customer_support_costs', name: 'Customer Support Costs', format: 'currency', isNegative: true },
+        { id: 'pc2', name: 'PC2', format: 'currency' },
+      ]},
+      { title: 'Brand & Marketing NC', metrics: [
+        { id: 'brand_costs', name: 'Brand Costs', format: 'currency', isNegative: true },
+        { id: 'vochers_nc', name: 'Vochers NC', format: 'currency', isNegative: true },
+        { id: 'general_cost_nc', name: 'General Cost NC', format: 'currency', isNegative: true },
+        { id: 'marketing_nc', name: 'Marketing NC', format: 'currency', isNegative: true },
+        { id: 'pc3', name: 'PC3', format: 'currency' },
+      ]},
+      { title: 'EBITDA', metrics: [
+        { id: 'ga_costs', name: 'G&A Costs', format: 'currency', isNegative: true },
+        { id: 'hr_costs', name: 'HR Costs', format: 'currency', isNegative: true },
+        { id: 'ebitda', name: 'EBITDA', format: 'currency' },
+      ]},
+    ];
+
+    const generateMockData = () => {
+      const data = [];
+      const categories = [
+        { lvl1: 'کالای دیجیتال', lvl2: ['موبایل', 'لپ‌تاپ', 'هدفون', 'تبلت'] },
+        { lvl1: 'مد و پوشاک', lvl2: ['پیراهن', 'شلوار', 'کفش', 'اکسسوری'] },
+        { lvl1: 'خوردنی و آشامیدنی', lvl2: ['میوه', 'نوشیدنی', 'لبنیات', 'خرازی'] },
+        { lvl1: 'خانه و آشپزخانه', lvl2: ['مبلمان', 'لوازم آشپزی', 'دکور', 'نگهداری'] },
+      ];
+      const provinces = ['تهران', 'اصفهان', 'شیراز', 'مشهد'];
+      const periods = ['۱۴۰۳-۰۱', '۱۴۰۳-۰۲', '۱۴۰۳-۰۳', '۱۴۰۳-۰۴'];
+
+      categories.forEach(cat => {
+        cat.lvl2.forEach(lvl2 => {
+          provinces.forEach(custProv => {
+            provinces.forEach(vendProv => {
+              periods.forEach(period => {
+                const gmv = Math.floor(Math.random() * 5000000000) + 1000000000;
+                const refunds = -Math.floor(gmv * 0.02);
+                const delivery = -Math.floor(gmv * 0.03);
+                const vendorDisc = -Math.floor(gmv * 0.05);
+                const nmv = gmv + refunds + delivery + vendorDisc;
+                const commission = Math.floor(nmv * 0.08);
+                const ads = Math.floor(nmv * 0.02);
+                const mainRev = commission + ads;
+                const cor = -Math.floor(nmv * 0.05);
+                const vat = -Math.floor(nmv * 0.04);
+                const marketingCRC = -Math.floor(nmv * 0.02);
+                const pc1 = mainRev + cor + marketingCRC + vat;
+                const signup = Math.floor(nmv * 0.005);
+                const penalty = Math.floor(nmv * 0.002);
+                const platform = Math.floor(nmv * 0.005);
+                const totalFee = signup + penalty + platform;
+                const support = -Math.floor(nmv * 0.005);
+                const pc2 = pc1 + totalFee + support;
+                const brand = -Math.floor(nmv * 0.002);
+                const marketingNC = -Math.floor(nmv * 0.02);
+                const pc3 = pc2 + brand + marketingNC;
+                const ga = -Math.floor(nmv * 0.01);
+                const hr = -Math.floor(nmv * 0.01);
+                const ebitda = pc3 + ga + hr;
+
+                data.push({
+                  cat_lvl1: cat.lvl1, cat_lvl2: lvl2,
+                  customer_province: custProv, vendor_province: vendProv, period,
+                  orders: Math.floor(Math.random() * 5000) + 1000,
+                  items: Math.floor(Math.random() * 10000) + 2000,
+                  aov: Math.floor(gmv / 3000),
+                  gmv, refunds, delivery_costs: delivery,
+                  vendor_discounts: vendorDisc, nmv,
+                  commission, ads, main_revenue: mainRev,
+                  cost_of_revenue: cor,
+                  vochers_crc: -Math.floor(nmv * 0.01),
+                  general_cost_crc: -Math.floor(nmv * 0.01),
+                  marketing_crc: marketingCRC,
+                  vat, pc1,
+                  signup_fee: signup, penalty_fee: penalty,
+                  platform_fee: platform, total_fee: totalFee,
+                  customer_support_costs: support, pc2,
+                  brand_costs: brand,
+                  vochers_nc: -Math.floor(nmv * 0.01),
+                  general_cost_nc: -Math.floor(nmv * 0.01),
+                  marketing_nc: marketingNC, pc3,
+                  ga_costs: ga, hr_costs: hr, ebitda,
+                });
+              });
+            });
+          });
+        });
+      });
+      return data;
+    };
+
+    const ALL_DATA = generateMockData();
+
+    function FilterPanel({ filters, onFilterChange }) {
+      const handleFilterChange = (key, value) => {
+        if (value) onFilterChange({ ...filters, [key]: value });
+        else {
+          const newFilters = { ...filters };
+          delete newFilters[key];
+          onFilterChange(newFilters);
+        }
+      };
+
+      const clearFilter = (key) => {
+        const newFilters = { ...filters };
+        delete newFilters[key];
+        onFilterChange(newFilters);
+      };
+
+      const activeFilterCount = Object.keys(filters).length;
+
+      return (
+        <div className="filter-section">
+          <h5 className="selector-title">فیلترها</h5>
+
+          <div className="filter-section">
+            <label className="filter-label">Category L1</label>
+            <select className="filter-select" value={filters.cat_lvl1 || ''} onChange={(e) => handleFilterChange('cat_lvl1', e.target.value)}>
+              <option value="">همه</option>
+              {FILTER_OPTIONS.cat_lvl1.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="filter-section">
+            <label className="filter-label">Category L2</label>
+            <select className="filter-select" value={filters.cat_lvl2 || ''} onChange={(e) => handleFilterChange('cat_lvl2', e.target.value)}>
+              <option value="">همه</option>
+              {FILTER_OPTIONS.cat_lvl2.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="filter-section">
+            <label className="filter-label">Customer Province</label>
+            <select className="filter-select" value={filters.customer_province || ''} onChange={(e) => handleFilterChange('customer_province', e.target.value)}>
+              <option value="">همه</option>
+              {FILTER_OPTIONS.customer_province.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="filter-section">
+            <label className="filter-label">Vendor Province</label>
+            <select className="filter-select" value={filters.vendor_province || ''} onChange={(e) => handleFilterChange('vendor_province', e.target.value)}>
+              <option value="">همه</option>
+              {FILTER_OPTIONS.vendor_province.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+
+          <div className="filter-section">
+            <label className="filter-label">Period</label>
+            <select className="filter-select" value={filters.period || ''} onChange={(e) => handleFilterChange('period', e.target.value)}>
+              <option value="">همه</option>
+              {['۱۴۰۳-۰۱', '۱۴۰۳-۰۲', '۱۴۰۳-۰۳', '۱۴۰۳-۰۴'].map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+
+          {activeFilterCount > 0 && (
+            <>
+              <div className="active-filters">
+                {Object.entries(filters).map(([key, value]) => (
+                  <span key={key} className="filter-tag">
+                    {key}: {value}
+                    <button onClick={() => clearFilter(key)}>×</button>
+                  </span>
+                ))}
+              </div>
+              <button className="clear-filters" onClick={() => onFilterChange({})}>
+                پاک کردن همه فیلترها ({activeFilterCount})
+              </button>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    function DimensionSelector({ dimensions, selected, onChange }) {
+      return (
+        <div className="selector">
+          <h5 className="selector-title">بعد گزارش (گروه‌بندی)</h5>
+          <div className="dimension-list">
+            {dimensions.map(dim => (
+              <button key={dim.id} className={`dimension-btn ${selected === dim.id ? 'selected' : ''}`} onClick={() => onChange(selected === dim.id ? null : dim.id)}>
+                <span>{dim.name}</span>
+                {selected === dim.id && <span className="check">✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function PnLSummary({ data, viewType }) {
+      const totals = useMemo(() => {
+        const t = { gmv: 0, nmv: 0, main_revenue: 0, ebitda: 0 };
+        data.forEach(row => {
+          t.gmv += row.gmv || 0;
+          t.nmv += row.nmv || 0;
+          t.main_revenue += row.main_revenue || 0;
+          t.ebitda += row.ebitda || 0;
+        });
+        return t;
+      }, [data]);
+
+      if (viewType === 'ratios') {
+        return (
+          <div className="pnl-summary">
+            <h3>Ratios (% of GMV)</h3>
+            <div className="summary-grid">
+              <div className="summary-item">
+                <div className="summary-label">NMV / GMV</div>
+                <div className="summary-value">{formatPercent((totals.nmv / totals.gmv) * 100)}</div>
+              </div>
+              <div className="summary-item">
+                <div className="summary-label">Main Revenue / GMV</div>
+                <div className="summary-value">{formatPercent((totals.main_revenue / totals.gmv) * 100)}</div>
+              </div>
+              <div className="summary-item">
+                <div className="summary-label">EBITDA / GMV</div>
+                <div className="summary-value negative">{formatPercent((totals.ebitda / totals.gmv) * 100)}</div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="pnl-summary">
+          <h3>P&L Summary</h3>
+          <div className="summary-grid">
+            <div className="summary-item">
+              <div className="summary-label">GMV</div>
+              <div className="summary-value">{formatCurrency(totals.gmv)}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">NMV</div>
+              <div className="summary-value">{formatCurrency(totals.nmv)}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">Main Revenue</div>
+              <div className="summary-value">{formatCurrency(totals.main_revenue)}</div>
+            </div>
+            <div className="summary-item">
+              <div className="summary-label">EBITDA</div>
+              <div className={`summary-value ${totals.ebitda >= 0 ? 'positive' : 'negative'}`}>
+                {formatCurrency(totals.ebitda)}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function PnLTable({ data, viewType, groupByDimension }) {
+      const formatValue = (value, metric) => {
+        if (value === null || value === undefined) return '-';
+        if (viewType === 'ratios') return formatPercent(value);
+        if (metric.format === 'currency') return formatCurrency(value);
+        if (metric.format === 'integer') return toPersianDigits(value.toLocaleString());
+        return toPersianDigits(value.toString());
+      };
+
+      const groupedData = useMemo(() => {
+        if (!groupByDimension) return data;
+        const groups = {};
+        data.forEach(row => {
+          const key = row[groupByDimension];
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(row);
+        });
+        return Object.entries(groups).map(([key, rows]) => {
+          const aggregated = { dimension: key };
+          PNL_SECTIONS.forEach(section => {
+            section.metrics.forEach(metric => {
+              aggregated[metric.id] = rows.reduce((sum, r) => sum + (r[metric.id] || 0), 0);
+            });
+          });
+          return aggregated;
+        });
+      }, [data, groupByDimension]);
+
+      if (groupedData.length === 0) {
+        return <div className="empty-state">داده‌ای یافت نشد. لطفا فیلترها را تغییر دهید.</div>;
+      }
+
+      return (
+        <div className="pnl-table-container">
+          <table className="pnl-table">
+            <thead>
+              <tr>
+                <th>Metric / Dimension</th>
+                {groupedData.map((row, idx) => <th key={idx}>{row.dimension}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {PNL_SECTIONS.map((section, sectionIdx) => (
+                <React.Fragment key={section.title}>
+                  <tr className="section-header">
+                    <td colSpan={groupedData.length + 1} className="metric-section">{section.title}</td>
+                  </tr>
+                  {section.metrics.map((metric, metricIdx) => (
+                    <tr key={metric.id} style={{background: (sectionIdx + metricIdx) % 2 === 0 ? '#fafafa' : 'white'}}>
+                      <td style={{paddingLeft: '20px', fontWeight: 500}}>{metric.name}</td>
+                      {groupedData.map((row, idx) => (
+                        <td key={idx} className="metric-cell">
+                          <span className={`cell-value ${metric.isNegative && row[metric.id] < 0 ? 'negative' : ''}`}>
+                            {formatValue(row[metric.id], metric)}
+                          </span>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    function PnLReport() {
+      const [selectedDim, setSelectedDim] = useState('cat_lvl1');
+      const [viewType, setViewType] = useState('numbers');
+      const [filters, setFilters] = useState({});
+
+      const filteredData = useMemo(() => {
+        return ALL_DATA.filter(row => {
+          return Object.entries(filters).every(([key, value]) => row[key] === value);
+        });
+      }, [filters]);
+
+      const dimensionField = selectedDim ? DIMENSIONS.find(d => d.id === selectedDim)?.field : null;
+
+      return (
+        <div className="pnl-report">
+          <header className="report-header">
+            <h1>گزارش سود و زیان (P&L)</h1>
+            <p className="report-subtitle">تحلیل GMV، NMV، درآمد و سود بر اساس ابعاد مختلف</p>
+          </header>
+
+          <div className="report-layout">
+            <aside className="config-panel">
+              <div className="config-section">
+                <h3>تنظیمات گزارش</h3>
+                <FilterPanel filters={filters} onFilterChange={setFilters} />
+                <DimensionSelector dimensions={DIMENSIONS} selected={selectedDim} onChange={setSelectedDim} />
+                <div className="view-toggle">
+                  <button className={`view-btn ${viewType === 'numbers' ? 'active' : ''}`} onClick={() => setViewType('numbers')}>اعداد</button>
+                  <button className={`view-btn ${viewType === 'ratios' ? 'active' : ''}`} onClick={() => setViewType('ratios')}>نسبت‌ها</button>
+                </div>
+              </div>
+            </aside>
+
+            <main className="report-content">
+              <div className="pnl-toolbar">
+                <div>
+                  <button className="btn btn-primary" onClick={() => setFilters({})}>↻ بروزرسانی</button>
+                </div>
+                <div>
+                  <span style={{fontSize: 12, color: '#6b7280', marginRight: 8}}>خروجی:</span>
+                  <button className="btn">CSV</button>
+                  <button className="btn">Excel</button>
+                  <button className="btn">PDF</button>
+                </div>
+              </div>
+
+              <PnLSummary data={filteredData} viewType={viewType} />
+              <PnLTable data={filteredData} viewType={viewType} groupByDimension={dimensionField} />
+
+              <div className="report-footer">
+                تولید شده: {toPersianDigits(new Date().toLocaleString('fa-IR'))} • {toPersianDigits(filteredData.length)} ردیف از {toPersianDigits(ALL_DATA.length)} ردیف
+              </div>
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PnLReport />);
+  </script>
+</body>
+</html>

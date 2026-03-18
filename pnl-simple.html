@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>گزارش سود و زیان - باسلام</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Tahoma, Arial, sans-serif;
+      background: #f5f5f5;
+      direction: rtl;
+      padding: 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #ddd;
+    }
+    .header h1 { font-size: 24px; margin-bottom: 5px; }
+    .header p { color: #666; font-size: 13px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    .sidebar {
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      padding: 15px;
+      height: fit-content;
+    }
+    .sidebar h3 {
+      font-size: 14px;
+      color: #333;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 8px;
+      margin-bottom: 15px;
+    }
+
+    .filter-group { margin-bottom: 12px; }
+    .filter-group label {
+      display: block;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .filter-group select {
+      width: 100%;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .dim-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .dim-btn {
+      padding: 8px 12px;
+      border: 1px solid #ccc;
+      background: white;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      text-align: right;
+    }
+    .dim-btn:hover { border-color: #0066cc; }
+    .dim-btn.active {
+      background: #0066cc;
+      border-color: #0066cc;
+      color: white;
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #ddd;
+    }
+    .view-btn {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      background: white;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .view-btn.active {
+      background: #0066cc;
+      color: white;
+      border-color: #0066cc;
+    }
+
+    .clear-btn {
+      margin-top: 10px;
+      width: 100%;
+      padding: 6px;
+      background: #f0f0f0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+
+    .main-content {
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 15px;
+      background: #f9f9f9;
+      border-bottom: 1px solid #ddd;
+    }
+    .toolbar-btn {
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      background: white;
+    }
+    .toolbar-btn.primary {
+      background: #0066cc;
+      color: white;
+      border-color: #0066cc;
+    }
+
+    .summary {
+      padding: 15px;
+      background: #f0f8ff;
+      border-bottom: 1px solid #ddd;
+    }
+    .summary h3 {
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .summary-card {
+      padding: 12px;
+      background: white;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+      text-align: center;
+    }
+    .summary-card .label {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .summary-card .value {
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .negative { color: #cc0000; }
+    .positive { color: #009900; }
+
+    .table-container {
+      overflow-x: auto;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 8px 10px;
+      text-align: right;
+      border-bottom: 1px solid #eee;
+      white-space: nowrap;
+    }
+    th {
+      background: #f5f5f5;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    td { font-family: monospace; }
+    td.metric { text-align: left; direction: ltr; }
+    .section-row {
+      background: #f0f0f0;
+      font-weight: bold;
+      color: #555;
+      font-size: 10px;
+    }
+    tr:nth-child(even) { background: #fafafa; }
+    tr:hover { background: #f5f5f5; }
+
+    .footer {
+      padding: 10px 15px;
+      background: #f9f9f9;
+      border-top: 1px solid #ddd;
+      font-size: 11px;
+      color: #666;
+      text-align: center;
+    }
+
+    .active-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 10px;
+    }
+    .filter-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: #e0f0ff;
+      color: #0066cc;
+      border-radius: 12px;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>گزارش سود و زیان (P&L)</h1>
+      <p>تحلیل GMV، NMV، درآمد و سود</p>
+    </div>
+
+    <div class="layout">
+      <div class="sidebar">
+        <h3>تنظیمات گزارش</h3>
+
+        <div class="filter-group">
+          <label>Category L1</label>
+          <select id="filter-cat1">
+            <option value="">همه</option>
+            <option value="کالای دیجیتال">کالای دیجیتال</option>
+            <option value="مد و پوشاک">مد و پوشاک</option>
+            <option value="خوردنی و آشامیدنی">خوردنی و آشامیدنی</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Category L2</label>
+          <select id="filter-cat2">
+            <option value="">همه</option>
+            <option value="موبایل">موبایل</option>
+            <option value="لپ‌تاپ">لپ‌تاپ</option>
+            <option value="پیراهن">پیراهن</option>
+            <option value="شلوار">شلوار</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Customer Province</label>
+          <select id="filter-cust">
+            <option value="">همه</option>
+            <option value="تهران">تهران</option>
+            <option value="اصفهان">اصفهان</option>
+            <option value="شیراز">شیراز</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Vendor Province</label>
+          <select id="filter-vend">
+            <option value="">همه</option>
+            <option value="تهران">تهران</option>
+            <option value="اصفهان">اصفهان</option>
+            <option value="شیراز">شیراز</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label>Period</label>
+          <select id="filter-period">
+            <option value="">همه</option>
+            <option value="۱۴۰۳-۰۱">۱۴۰۳-۰۱</option>
+            <option value="۱۴۰۳-۰۲">۱۴۰۳-۰۲</option>
+          </select>
+        </div>
+
+        <div id="active-filters" class="active-filters"></div>
+        <button class="clear-btn" onclick="clearFilters()">پاک کردن همه</button>
+
+        <h3 style="margin-top: 20px; margin-bottom: 10px;">بعد گزارش</h3>
+        <div class="dim-buttons">
+          <button class="dim-btn active" data-dim="cat1" onclick="setDim('cat1')">دسته‌بندی سطح ۱</button>
+          <button class="dim-btn" data-dim="cat2" onclick="setDim('cat2')">دسته‌بندی سطح ۲</button>
+          <button class="dim-btn" data-dim="cust" onclick="setDim('cust')">استان مشتری</button>
+          <button class="dim-btn" data-dim="vend" onclick="setDim('vend')">استان فروشنده</button>
+        </div>
+
+        <div class="view-toggle">
+          <button class="view-btn active" id="btn-num" onclick="setView('num')">اعداد</button>
+          <button class="view-btn" id="btn-ratio" onclick="setView('ratio')">نسبت‌ها</button>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <div class="toolbar">
+          <button class="toolbar-btn primary" onclick="loadData()">بروزرسانی</button>
+          <span style="font-size: 11px; color: #666;">خروجی: CSV | Excel</span>
+        </div>
+
+        <div class="summary">
+          <h3 id="sum-title">خلاصه P&L</h3>
+          <div class="summary-grid" id="sum-grid"></div>
+        </div>
+
+        <div class="table-container">
+          <table id="tbl">
+            <thead><tr id="tbl-head"><th>متریک / بعد</th></tr></thead>
+            <tbody id="tbl-body"></tbody>
+          </table>
+        </div>
+
+        <div class="footer" id="footer"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const faDigits = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+const toFa = s => s.toString().replace(/\d/g, d => faDigits[+d]);
+const fmtMoney = v => v ? toFa(Math.abs(v).toLocaleString()) + ' ریال' : '-';
+const fmtPct = v => toFa(v.toFixed(1)) + '%';
+
+const sections = [
+  { title: 'حجم فروش', metrics: [
+    { id: 'orders', name: 'Orders', type: 'int' },
+    { id: 'items', name: 'Items', type: 'int' },
+    { id: 'aov', name: 'AOV', type: 'money' },
+  ]},
+  { title: 'GMV & NMV', metrics: [
+    { id: 'gmv', name: 'GMV', type: 'money' },
+    { id: 'refunds', name: 'Refunds', type: 'money', neg: true },
+    { id: 'delivery', name: 'Delivery', type: 'money', neg: true },
+    { id: 'discounts', name: 'Discounts', type: 'money', neg: true },
+    { id: 'nmv', name: 'NMV', type: 'money' },
+  ]},
+  { title: 'درآمد اصلی', metrics: [
+    { id: 'commission', name: 'Commission', type: 'money' },
+    { id: 'ads', name: 'Ads', type: 'money' },
+    { id: 'main_rev', name: 'Main Revenue', type: 'money' },
+  ]},
+  { title: 'هزینه درآمد', metrics: [
+    { id: 'cor', name: 'Cost of Revenue', type: 'money', neg: true },
+    { id: 'vat', name: 'VAT', type: 'money', neg: true },
+    { id: 'pc1', name: 'PC1', type: 'money' },
+  ]},
+  { title: 'EBITDA', metrics: [
+    { id: 'ga', name: 'G&A Costs', type: 'money', neg: true },
+    { id: 'hr', name: 'HR Costs', type: 'money', neg: true },
+    { id: 'ebitda', name: 'EBITDA', type: 'money' },
+  ]},
+];
+
+let data = [], dim = 'cat1', view = 'num', filters = {};
+
+function makeData() {
+  data = [];
+  const cats = [
+    { l1: 'کالای دیجیتال', l2: ['موبایل', 'لپ‌تاپ', 'هدفون'] },
+    { l1: 'مد و پوشاک', l2: ['پیراهن', 'شلوار', 'کفش'] },
+    { l1: 'خوردنی', l2: ['میوه', 'نوشیدنی'] },
+  ];
+  const provs = ['تهران', 'اصفهان', 'شیراز'];
+  const periods = ['۱۴۰۳-۰۱', '۱۴۰۳-۰۲'];
+
+  for (const cat of cats) {
+    for (const l2 of cat.l2) {
+      for (const cp of provs) {
+        for (const vp of provs) {
+          for (const p of periods) {
+            const gmv = Math.floor(Math.random() * 1000000000) + 500000000;
+            const refunds = -Math.floor(gmv * 0.02);
+            const delivery = -Math.floor(gmv * 0.03);
+            const discounts = -Math.floor(gmv * 0.05);
+            const nmv = gmv + refunds + delivery + discounts;
+            const commission = Math.floor(nmv * 0.08);
+            const ads = Math.floor(nmv * 0.02);
+            const main_rev = commission + ads;
+            const cor = -Math.floor(nmv * 0.05);
+            const vat = -Math.floor(nmv * 0.04);
+            const pc1 = main_rev + cor + vat;
+            const ga = -Math.floor(nmv * 0.01);
+            const hr = -Math.floor(nmv * 0.01);
+            const ebitda = pc1 + ga + hr;
+
+            data.push({
+              cat1: cat.l1, cat2: l2, cust: cp, vend: vp, period: p,
+              orders: Math.floor(Math.random() * 5000) + 1000,
+              items: Math.floor(Math.random() * 10000) + 2000,
+              aov: Math.floor(gmv / 3000),
+              gmv, refunds, delivery, discounts, nmv,
+              commission, ads, main_rev, cor, vat, pc1,
+              ga, hr, ebitda
+            });
+          }
+        }
+      }
+    }
+  }
+}
+
+function getData() {
+  return data.filter(r => Object.entries(filters).every(([k, v]) => r[k] === v));
+}
+
+function groupData(rows) {
+  const g = {};
+  for (const r of rows) {
+    const k = r[dim];
+    if (!g[k]) g[k] = [];
+    g[k].push(r);
+  }
+  return Object.entries(g).map(([k, rows]) => {
+    const agg = { name: k };
+    for (const s of sections) {
+      for (const m of s.metrics) {
+        agg[m.id] = rows.reduce((a, r) => a + (r[m.id] || 0), 0);
+      }
+    }
+    return agg;
+  });
+}
+
+function toRatios(rows) {
+  return rows.map(r => {
+    const o = { name: r.name };
+    const g = r.gmv || 1;
+    for (const s of sections) {
+      for (const m of s.metrics) o[m.id] = (r[m.id] / g) * 100;
+    }
+    return o;
+  });
+}
+
+function render() {
+  const f = getData();
+  const g = groupData(f);
+  const d = view === 'ratio' ? toRatios(g) : g;
+
+  // Summary
+  const t = { gmv: 0, nmv: 0, main_rev: 0, ebitda: 0 };
+  for (const r of f) {
+    t.gmv += r.gmv; t.nmv += r.nmv;
+    t.main_rev += r.main_rev; t.ebitda += r.ebitda;
+  }
+
+  const sg = document.getElementById('sum-grid');
+  document.getElementById('sum-title').textContent = view === 'ratio' ? 'نسبت‌ها (% از GMV)' : 'خلاصه P&L';
+
+  if (view === 'ratio') {
+    sg.innerHTML = `
+      <div class="summary-card"><div class="label">NMV/GMV</div><div class="value">${fmtPct(t.nmv/t.gmv*100)}</div></div>
+      <div class="summary-card"><div class="label">Main Rev/GMV</div><div class="value">${fmtPct(t.main_rev/t.gmv*100)}</div></div>
+      <div class="summary-card"><div class="label">EBITDA/GMV</div><div class="value ${t.ebitda<0?'negative':'positive'}">${fmtPct(t.ebitda/t.gmv*100)}</div></div>`;
+  } else {
+    sg.innerHTML = `
+      <div class="summary-card"><div class="label">GMV</div><div class="value">${fmtMoney(t.gmv)}</div></div>
+      <div class="summary-card"><div class="label">NMV</div><div class="value">${fmtMoney(t.nmv)}</div></div>
+      <div class="summary-card"><div class="label">Main Revenue</div><div class="value">${fmtMoney(t.main_rev)}</div></div>
+      <div class="summary-card"><div class="label">EBITDA</div><div class="value ${t.ebitda>=0?'positive':'negative'}">${fmtMoney(t.ebitda)}</div></div>`;
+  }
+
+  // Table header
+  const hh = document.getElementById('tbl-head');
+  hh.innerHTML = '<th>متریک / بعد</th>' + d.map(r => `<th>${r.name}</th>`).join('');
+
+  // Table body
+  const tb = document.getElementById('tbl-body');
+  tb.innerHTML = '';
+  for (const s of sections) {
+    const sr = document.createElement('tr');
+    sr.className = 'section-row';
+    sr.innerHTML = `<td colspan="${d.length+1}">${s.title}</td>`;
+    tb.appendChild(sr);
+
+    for (const m of s.metrics) {
+      const tr = document.createElement('tr');
+      let h = `<td style="padding-left:15px;font-weight:bold;">${m.name}</td>`;
+      for (const r of d) {
+        const v = r[m.id];
+        const fmt = view === 'ratio' ? fmtPct(v) : m.type === 'money' ? fmtMoney(v) : toFa(v.toLocaleString());
+        h += `<td class="metric"><span class="${m.neg&&v<0?'negative':''}">${fmt}</span></td>`;
+      }
+      tr.innerHTML = h;
+      tb.appendChild(tr);
+    }
+  }
+
+  // Filters
+  const af = document.getElementById('active-filters');
+  const fe = Object.entries(filters);
+  af.innerHTML = fe.length ? fe.map(([k, v]) =>
+    `<span class="filter-tag">${k}: ${v} <span onclick="removeFilter('${k}')">×</span></span>`
+  ).join('') : '';
+
+  document.getElementById('footer').textContent =
+    `${toFa(f.length)} ردیف از ${toFa(data.length)} ردیف`;
+}
+
+function setDim(d) {
+  dim = d;
+  document.querySelectorAll('.dim-btn').forEach(b => b.classList.toggle('active', b.dataset.dim === d));
+  render();
+}
+
+function setView(v) {
+  view = v;
+  document.getElementById('btn-num').classList.toggle('active', v === 'num');
+  document.getElementById('btn-ratio').classList.toggle('active', v === 'ratio');
+  render();
+}
+
+function clearFilters() {
+  filters = {};
+  document.querySelectorAll('select').forEach(s => s.value = '');
+  render();
+}
+
+function removeFilter(k) {
+  delete filters[k];
+  const id = { cat1: 'cat1', cat2: 'cat2', cust: 'cust', vend: 'vend', period: 'period' }[k];
+  if (id) document.getElementById('filter-' + id).value = '';
+  render();
+}
+
+function loadData() {
+  makeData();
+  render();
+}
+
+// Event listeners
+document.getElementById('filter-cat1').onchange = e => { if (e.target.value) filters.cat1 = e.target.value; else delete filters.cat1; render(); };
+document.getElementById('filter-cat2').onchange = e => { if (e.target.value) filters.cat2 = e.target.value; else delete filters.cat2; render(); };
+document.getElementById('filter-cust').onchange = e => { if (e.target.value) filters.cust = e.target.value; else delete filters.cust; render(); };
+document.getElementById('filter-vend').onchange = e => { if (e.target.value) filters.vend = e.target.value; else delete filters.vend; render(); };
+document.getElementById('filter-period').onchange = e => { if (e.target.value) filters.period = e.target.value; else delete filters.period; render(); };
+
+// Init
+makeData();
+render();
+</script>
+</body>
+</html>
