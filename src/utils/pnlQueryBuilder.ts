@@ -169,11 +169,6 @@ export class PnLQueryBuilder {
         parts.where.push(condition);
       }
     }
-
-    // Add date range filter if applicable
-    if (this.config.options?.periodStart && this.config.options?.periodEnd) {
-      parts.where.push(`d.date BETWEEN '${this.config.options.periodStart}' AND '${this.config.options.periodEnd}'`);
-    }
   }
 
   /**
@@ -300,7 +295,7 @@ export class PnLQueryBuilder {
   /**
    * Build comparison query (YoY, MoM, etc.)
    */
-  buildComparisonQuery(offset: number): string {
+  buildComparisonQuery(_offset: number): string {
     // Clone config and adjust date range
     const comparisonConfig: PnLConfig = {
       ...this.config,

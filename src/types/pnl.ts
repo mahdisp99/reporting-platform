@@ -15,7 +15,7 @@ export interface Metric {
   name: string;
   field: string;
   table: string;
-  aggregation: 'sum' | 'count' | 'avg' | 'min' | 'max' | 'custom';
+  aggregation: 'sum' | 'count' | 'countDistinct' | 'avg' | 'min' | 'max' | 'custom';
   formula?: string;
   format: 'currency' | 'number' | 'percent' | 'integer';
   decimals?: number;
@@ -95,6 +95,7 @@ export interface PnLRow {
   isTotal: boolean;
   isSubtotal: boolean;
   parentKey?: string;
+  children?: PnLRow[];
 }
 
 export interface PnLReport {
@@ -120,60 +121,113 @@ export interface PnLColumn {
 
 // Predefined dimension hierarchies
 export const PRODUCT_HIERARCHY: Dimension[] = [
-  { id: 'category_l1', name: 'Category', field: 'category_level_1', table: 'products', level: 0 },
-  { id: 'category_l2', name: 'Subcategory', field: 'category_level_2', table: 'products', level: 1, parentDimension: 'category_l1' },
-  { id: 'category_l3', name: 'Product Type', field: 'category_level_3', table: 'products', level: 2, parentDimension: 'category_l2' },
-  { id: 'item_id', name: 'Item', field: 'item_id', table: 'order_items', level: 3, parentDimension: 'category_l3' },
+  { id: 'category_l1', name: 'Category L1', field: 'cat_lvl1_title', table: 'model_sales', level: 0 },
+  { id: 'category_l2', name: 'Category L2', field: 'cat_lvl2_title', table: 'model_sales', level: 1, parentDimension: 'category_l1' },
+  { id: 'category_l3', name: 'Category L3', field: 'cat_lvl3_title', table: 'model_sales', level: 2, parentDimension: 'category_l2' },
+  { id: 'item_id', name: 'Item ID', field: 'item_id', table: 'model_sales', level: 3, parentDimension: 'category_l3' },
 ];
 
 export const GEOGRAPHY_HIERARCHY: Dimension[] = [
-  { id: 'province', name: 'Province', field: 'province', table: 'locations', level: 0 },
-  { id: 'city', name: 'City', field: 'city', table: 'locations', level: 1, parentDimension: 'province' },
-  { id: 'store_id', name: 'Store', field: 'store_id', table: 'orders', level: 2, parentDimension: 'city' },
+  { id: 'customer_province', name: 'Customer Province', field: 'customer_province_title', table: 'model_sales', level: 0 },
+  { id: 'vendor_province', name: 'Vendor Province', field: 'vendor_province_title', table: 'model_sales', level: 0 },
+  { id: 'customer_type', name: 'Customer Type', field: 'customer_type_id', table: 'model_sales', level: 0 },
+  { id: 'vendor_type', name: 'Vendor Type', field: 'vendor_type_id', table: 'model_sales', level: 0 },
 ];
 
 export const TIME_HIERARCHY: Dimension[] = [
-  { id: 'year', name: 'Year', field: 'year', table: 'dates', level: 0 },
-  { id: 'quarter', name: 'Quarter', field: 'quarter', table: 'dates', level: 1, parentDimension: 'year' },
-  { id: 'month', name: 'Month', field: 'month', table: 'dates', level: 2, parentDimension: 'quarter' },
-  { id: 'week', name: 'Week', field: 'week', table: 'dates', level: 3, parentDimension: 'month' },
-  { id: 'day', name: 'Day', field: 'date', table: 'dates', level: 4, parentDimension: 'week' },
+  { id: 'year', name: 'Persian Year', field: 'persian_year', table: 'model_sales', level: 0 },
+  { id: 'year_month', name: 'Year-Month', field: 'persiandate_purchase_yearmonth', table: 'model_sales', level: 1, parentDimension: 'year' },
+  { id: 'month', name: 'Month', field: 'persian_month', table: 'model_sales', level: 2, parentDimension: 'year_month' },
 ];
 
 // Standard P&L Metrics
 export const STANDARD_PNL_METRICS: Metric[] = [
   {
-    id: 'revenue',
-    name: 'Revenue',
-    field: 'revenue',
-    table: 'order_items',
-    aggregation: 'sum',
-    format: 'currency',
-    decimals: 0,
-  },
-  {
-    id: 'cost_of_goods',
-    name: 'Cost of Goods Sold',
-    field: 'cost_amount',
-    table: 'order_items',
-    aggregation: 'sum',
-    format: 'currency',
-    decimals: 0,
-  },
-  {
-    id: 'quantity',
-    name: 'Quantity Sold',
-    field: 'quantity',
-    table: 'order_items',
-    aggregation: 'sum',
+    id: 'orders',
+    name: 'Orders',
+    field: 'order_id',
+    table: 'model_sales',
+    aggregation: 'countDistinct',
     format: 'integer',
     decimals: 0,
   },
   {
-    id: 'discount',
-    name: 'Discounts',
-    field: 'discount_amount',
-    table: 'order_items',
+    id: 'items',
+    name: 'Items',
+    field: 'item_id',
+    table: 'model_sales',
+    aggregation: 'count',
+    format: 'integer',
+    decimals: 0,
+  },
+  {
+    id: 'gmv',
+    name: 'GMV',
+    field: 'gmv',
+    table: 'model_sales',
+    aggregation: 'sum',
+    format: 'currency',
+    decimals: 0,
+  },
+  {
+    id: 'refund_amount',
+    name: 'Refund Amount',
+    field: 'refund_amount',
+    table: 'model_sales',
+    aggregation: 'sum',
+    format: 'currency',
+    decimals: 0,
+  },
+  {
+    id: 'delivery_cost',
+    name: 'Delivery Cost',
+    field: 'delivery_cost',
+    table: 'model_sales',
+    aggregation: 'sum',
+    format: 'currency',
+    decimals: 0,
+  },
+  {
+    id: 'vendor_discount',
+    name: 'Vendor Discount',
+    field: 'vendor_discount',
+    table: 'model_sales',
+    aggregation: 'sum',
+    format: 'currency',
+    decimals: 0,
+  },
+  {
+    id: 'commission',
+    name: 'Commission',
+    field: 'commission',
+    table: 'model_sales',
+    aggregation: 'sum',
+    format: 'currency',
+    decimals: 0,
+  },
+  {
+    id: 'satisfaction_commission',
+    name: 'Satisfaction Commission',
+    field: 'satisfaction_commission',
+    table: 'model_sales',
+    aggregation: 'sum',
+    format: 'currency',
+    decimals: 0,
+  },
+  {
+    id: 'service_fee',
+    name: 'Service Fee',
+    field: 'service_fee',
+    table: 'model_sales',
+    aggregation: 'sum',
+    format: 'currency',
+    decimals: 0,
+  },
+  {
+    id: 'penalty',
+    name: 'Penalty',
+    field: 'penalty',
+    table: 'model_sales',
     aggregation: 'sum',
     format: 'currency',
     decimals: 0,
@@ -183,31 +237,32 @@ export const STANDARD_PNL_METRICS: Metric[] = [
 // Calculated P&L Metrics
 export const CALCULATED_PNL_METRICS: CalculatedMetric[] = [
   {
-    id: 'gross_profit',
-    name: 'Gross Profit',
-    field: 'gross_profit',
+    id: 'nmv',
+    name: 'NMV',
+    field: 'nmv',
     table: 'calculated',
     aggregation: 'custom',
     type: 'calculated',
     format: 'currency',
     decimals: 0,
-    dependencies: ['revenue', 'cost_of_goods'],
-    calculate: (row) => (row.revenue || 0) - (row.cost_of_goods || 0),
+    dependencies: ['gmv', 'refund_amount', 'delivery_cost', 'vendor_discount'],
+    calculate: (row) =>
+      (row.gmv || 0)
+      - (row.refund_amount || 0)
+      - (row.delivery_cost || 0)
+      - (row.vendor_discount || 0),
   },
   {
-    id: 'gross_margin',
-    name: 'Gross Margin %',
-    field: 'gross_margin',
+    id: 'main_revenue',
+    name: 'Main Revenue',
+    field: 'main_revenue',
     table: 'calculated',
     aggregation: 'custom',
     type: 'calculated',
-    format: 'percent',
-    decimals: 2,
-    dependencies: ['gross_profit', 'revenue'],
-    calculate: (row) => {
-      const revenue = row.revenue || 0;
-      return revenue > 0 ? ((row.gross_profit || 0) / revenue) * 100 : 0;
-    },
+    format: 'currency',
+    decimals: 0,
+    dependencies: ['commission', 'satisfaction_commission'],
+    calculate: (row) => (row.commission || 0) + (row.satisfaction_commission || 0),
   },
   {
     id: 'avg_order_value',
@@ -218,22 +273,22 @@ export const CALCULATED_PNL_METRICS: CalculatedMetric[] = [
     type: 'calculated',
     format: 'currency',
     decimals: 2,
-    dependencies: ['revenue', 'order_count'],
+    dependencies: ['gmv', 'orders'],
     calculate: (row) => {
-      const orders = row.order_count || 1;
-      return (row.revenue || 0) / orders;
+      const orders = row.orders || 1;
+      return (row.gmv || 0) / orders;
     },
   },
   {
-    id: 'net_revenue',
-    name: 'Net Revenue',
-    field: 'net_revenue',
+    id: 'total_fee',
+    name: 'Total Fee',
+    field: 'total_fee',
     table: 'calculated',
     aggregation: 'custom',
     type: 'calculated',
     format: 'currency',
     decimals: 0,
-    dependencies: ['revenue', 'discount'],
-    calculate: (row) => (row.revenue || 0) - (row.discount || 0),
+    dependencies: ['service_fee', 'penalty'],
+    calculate: (row) => (row.service_fee || 0) + (row.penalty || 0),
   },
 ];

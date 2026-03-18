@@ -197,6 +197,37 @@ export const CUSTOM_METRICS: CalculatedMetric[] = [
 - [ ] Collaborative annotations
 - [ ] Row-level security
 
+## Backend API (ClickHouse)
+
+The frontend now reads live data from a FastAPI backend.
+
+### Run backend
+
+```bash
+cd backend
+python -m pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Required environment variables
+
+```bash
+BASALAM_CH_USER=...
+BASALAM_CH_PASSWORD=...
+```
+
+Optional overrides:
+
+```bash
+BASALAM_CH_HOST=proxy.bk0i.basalam.dev
+BASALAM_CH_PORT=39674
+BASALAM_CH_DATABASE=OLAPBasalam
+```
+
+### Frontend API base
+
+By default frontend requests `/api/*` on the same host. For local dev, Vite proxies `/api` to `http://127.0.0.1:8000`.
+
 ## License
 
 MIT

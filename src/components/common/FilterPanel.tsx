@@ -1,22 +1,52 @@
 import React, { useState } from 'react';
-import type { Filter, Dimension } from '../../types/pnl';
+import type { Dimension, Filter } from '../../types/pnl';
 
 interface FilterPanelProps {
   dimensions: Dimension[];
   filters: Filter[];
   onChange: (filters: Filter[]) => void;
+  filterOptions?: Record<string, Array<string | number>>;
 }
+
+type OperatorConfig = {
+  value: Filter['operator'];
+  label: string;
+  inputType: 'single' | 'multiple' | 'number' | 'range';
+};
+
+const OPERATORS: OperatorConfig[] = [
+  { value: 'equals', label: 'Equals', inputType: 'single' },
+  { value: 'notEquals', label: 'Not Equals', inputType: 'single' },
+  { value: 'in', label: 'In List', inputType: 'multiple' },
+  { value: 'notIn', label: 'Not In List', inputType: 'multiple' },
+  { value: 'greaterThan', label: 'Greater Than', inputType: 'number' },
+  { value: 'lessThan', label: 'Less Than', inputType: 'number' },
+  { value: 'between', label: 'Between', inputType: 'range' },
+];
+
+const toText = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  return String(value);
+};
+
+const toTextArray = (value: Filter['value']): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((item) => toText(item));
+  }
+  const text = toText(value);
+  return text ? [text] : [];
+};
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   dimensions,
   filters,
   onChange,
+  filterOptions = {},
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const addFilter = () => {
     if (dimensions.length === 0) return;
-
     const newFilter: Filter = {
       dimension: dimensions[0],
       operator: 'equals',
@@ -26,44 +56,36 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   };
 
   const updateFilter = (index: number, updates: Partial<Filter>) => {
-    const newFilters = [...filters];
-    newFilters[index] = { ...newFilters[index], ...updates };
-    onChange(newFilters);
+    const next = [...filters];
+    next[index] = { ...next[index], ...updates };
+    onChange(next);
   };
 
   const removeFilter = (index: number) => {
-    onChange(filters.filter((_, i) => i !== index));
+    onChange(filters.filter((_, currentIndex) => currentIndex !== index));
   };
 
-  const clearAll = () => {
-    onChange([]);
+  const clearAll = () => onChange([]);
+
+  const getInputType = (operator: Filter['operator']): OperatorConfig['inputType'] => {
+    return OPERATORS.find((item) => item.value === operator)?.inputType || 'single';
   };
 
-  const operators = [
-    { value: 'equals', label: 'Equals', inputType: 'single' },
-    { value: 'notEquals', label: 'Not Equals', inputType: 'single' },
-    { value: 'in', label: 'In List', inputType: 'multiple' },
-    { value: 'notIn', label: 'Not In List', inputType: 'multiple' },
-    { value: 'greaterThan', label: 'Greater Than', inputType: 'number' },
-    { value: 'lessThan', label: 'Less Than', inputType: 'number' },
-    { value: 'between', label: 'Between', inputType: 'range' },
-  ];
-
-  const getInputType = (operator: string): string => {
-    const op = operators.find((o) => o.value === operator);
-    return op?.inputType || 'single';
+  const getDimensionOptions = (dimensionId: string): string[] => {
+    const values = filterOptions[dimensionId] || [];
+    return values.map((value) => toText(value));
   };
 
   return (
     <div className="filter-panel">
       <div
         className="filter-header"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => setIsExpanded((value) => !value)}
         role="button"
         tabIndex={0}
       >
         <h4>Filters {filters.length > 0 && <span className="badge">{filters.length}</span>}</h4>
-        <span className="toggle">{isExpanded ? '▼' : '▶'}</span>
+        <span className="toggle">{isExpanded ? 'v' : '>'}</span>
       </div>
 
       {isExpanded && (
@@ -72,110 +94,139 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             <p className="empty-state">No filters applied. Click "Add Filter" to filter your data.</p>
           ) : (
             <div className="filter-list">
-              {filters.map((filter, index) => (
-                <div key={index} className="filter-item">
-                  {/* Dimension selector */}
-                  <select
-                    value={filter.dimension.id}
-                    onChange={(e) => {
-                      const dim = dimensions.find((d) => d.id === e.target.value);
-                      if (dim) updateFilter(index, { dimension: dim });
-                    }}
-                  >
-                    {dimensions.map((dim) => (
-                      <option key={dim.id} value={dim.id}>
-                        {dim.name}
-                      </option>
-                    ))}
-                  </select>
+              {filters.map((filter, index) => {
+                const inputType = getInputType(filter.operator);
+                const dimensionOptions = getDimensionOptions(filter.dimension.id);
+                const optionKey = `${filter.dimension.id}-${index}`;
 
-                  {/* Operator selector */}
-                  <select
-                    value={filter.operator}
-                    onChange={(e) =>
-                      updateFilter(index, {
-                        operator: e.target.value as Filter['operator'],
-                        value: '',
-                      })
-                    }
-                  >
-                    {operators.map((op) => (
-                      <option key={op.value} value={op.value}>
-                        {op.label}
-                      </option>
-                    ))}
-                  </select>
+                return (
+                  <div key={optionKey} className="filter-item">
+                    <select
+                      value={filter.dimension.id}
+                      onChange={(event) => {
+                        const nextDimension = dimensions.find((dimension) => dimension.id === event.target.value);
+                        if (!nextDimension) return;
+                        updateFilter(index, { dimension: nextDimension, value: '' });
+                      }}
+                    >
+                      {dimensions.map((dimension) => (
+                        <option key={dimension.id} value={dimension.id}>
+                          {dimension.name}
+                        </option>
+                      ))}
+                    </select>
 
-                  {/* Value input */}
-                  {getInputType(filter.operator) === 'single' && (
-                    <input
-                      type="text"
-                      value={filter.value as string}
-                      onChange={(e) => updateFilter(index, { value: e.target.value })}
-                      placeholder="Value..."
-                    />
-                  )}
-
-                  {getInputType(filter.operator) === 'multiple' && (
-                    <input
-                      type="text"
-                      value={Array.isArray(filter.value) ? filter.value.join(', ') : filter.value}
-                      onChange={(e) =>
+                    <select
+                      value={filter.operator}
+                      onChange={(event) =>
                         updateFilter(index, {
-                          value: e.target.value.split(',').map((v) => v.trim()),
+                          operator: event.target.value as Filter['operator'],
+                          value: '',
                         })
                       }
-                      placeholder="Comma-separated values..."
-                    />
-                  )}
+                    >
+                      {OPERATORS.map((operator) => (
+                        <option key={operator.value} value={operator.value}>
+                          {operator.label}
+                        </option>
+                      ))}
+                    </select>
 
-                  {getInputType(filter.operator) === 'number' && (
-                    <input
-                      type="number"
-                      value={filter.value as number}
-                      onChange={(e) =>
-                        updateFilter(index, { value: parseFloat(e.target.value) })
-                      }
-                    />
-                  )}
+                    {inputType === 'single' && dimensionOptions.length > 0 && (
+                      <select
+                        value={toText(filter.value)}
+                        onChange={(event) => updateFilter(index, { value: event.target.value })}
+                      >
+                        <option value="">Select value...</option>
+                        {dimensionOptions.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    )}
 
-                  {getInputType(filter.operator) === 'range' && (
-                    <div className="range-inputs">
+                    {inputType === 'single' && dimensionOptions.length === 0 && (
                       <input
-                        type="number"
-                        value={Array.isArray(filter.value) ? filter.value[0] : ''}
-                        onChange={(e) =>
+                        type="text"
+                        value={toText(filter.value)}
+                        onChange={(event) => updateFilter(index, { value: event.target.value })}
+                        placeholder="Value..."
+                      />
+                    )}
+
+                    {inputType === 'multiple' && dimensionOptions.length > 0 && (
+                      <select
+                        multiple
+                        value={toTextArray(filter.value)}
+                        onChange={(event) => {
+                          const values = Array.from(event.target.selectedOptions).map((option) => option.value);
+                          updateFilter(index, { value: values });
+                        }}
+                      >
+                        {dimensionOptions.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {inputType === 'multiple' && dimensionOptions.length === 0 && (
+                      <input
+                        type="text"
+                        value={toTextArray(filter.value).join(', ')}
+                        onChange={(event) =>
                           updateFilter(index, {
-                            value: [
-                              parseFloat(e.target.value),
-                              Array.isArray(filter.value) ? filter.value[1] || 0 : 0,
-                            ],
+                            value: event.target.value
+                              .split(',')
+                              .map((item) => item.trim())
+                              .filter(Boolean),
                           })
                         }
-                        placeholder="Min"
+                        placeholder="Comma-separated values..."
                       />
-                      <span>to</span>
+                    )}
+
+                    {inputType === 'number' && (
                       <input
                         type="number"
-                        value={Array.isArray(filter.value) ? filter.value[1] : ''}
-                        onChange={(e) =>
-                          updateFilter(index, {
-                            value: [
-                              Array.isArray(filter.value) ? filter.value[0] || 0 : 0,
-                              parseFloat(e.target.value),
-                            ],
-                          })
-                        }
-                        placeholder="Max"
+                        value={toText(filter.value)}
+                        onChange={(event) => updateFilter(index, { value: event.target.value })}
+                        placeholder="Number..."
                       />
-                    </div>
-                  )}
+                    )}
 
-                  <button type="button" className="remove-btn" onClick={() => removeFilter(index)}>
-                    ×
-                  </button>
-                </div>
-              ))}
+                    {inputType === 'range' && (
+                      <div className="range-inputs">
+                        <input
+                          type="number"
+                          value={toText(Array.isArray(filter.value) ? filter.value[0] : '')}
+                          onChange={(event) => {
+                            const maxValue = toText(Array.isArray(filter.value) ? filter.value[1] : '');
+                            updateFilter(index, { value: [event.target.value, maxValue] });
+                          }}
+                          placeholder="Min"
+                        />
+                        <span>to</span>
+                        <input
+                          type="number"
+                          value={toText(Array.isArray(filter.value) ? filter.value[1] : '')}
+                          onChange={(event) => {
+                            const minValue = toText(Array.isArray(filter.value) ? filter.value[0] : '');
+                            updateFilter(index, { value: [minValue, event.target.value] });
+                          }}
+                          placeholder="Max"
+                        />
+                      </div>
+                    )}
+
+                    <button type="button" className="remove-btn" onClick={() => removeFilter(index)}>
+                      x
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
