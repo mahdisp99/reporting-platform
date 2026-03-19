@@ -1,431 +1,578 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reporting Platform - Live PnL</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reporting Suite - Profit and Loss</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: #f2f5fa;
+      --panel: #fff;
+      --line: #dce4ef;
+      --text: #0f172a;
+      --muted: #475569;
+      --brand: #0f766e;
+      --nav: #0b1628;
+      --good: #0f9d58;
+      --bad: #b42318;
+      --radius: 14px;
+      --shadow: 0 8px 28px rgba(14, 26, 45, 0.08);
+    }
+
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #f4f6fb; color: #1f2937; }
-    .page { max-width: 1600px; margin: 0 auto; padding: 16px; }
-    .header { margin-bottom: 12px; }
-    .header h1 { margin: 0; font-size: 24px; }
-    .header p { margin: 6px 0 0; color: #6b7280; }
-    .layout { display: grid; grid-template-columns: 340px 1fr; gap: 14px; }
-    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
-    .panel { background: #fff; border: 1px solid #dbe2ec; border-radius: 10px; }
-    .panel-head { padding: 12px 14px; border-bottom: 1px solid #e5e7eb; font-weight: 700; }
-    .panel-body { padding: 12px 14px; }
-    .group { margin-bottom: 12px; }
-    .group label { display: block; font-size: 12px; color: #374151; margin-bottom: 5px; font-weight: 600; }
-    .group select, .group input { width: 100%; padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px; background: #fff; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 210px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; }
-    .metrics label { font-size: 12px; display: flex; align-items: center; gap: 6px; margin: 0; }
-    .actions { display: flex; gap: 8px; }
-    .btn { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; cursor: pointer; font-size: 12px; }
-    .btn.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
-    .btn:disabled { opacity: 0.6; cursor: wait; }
-    .status { margin-bottom: 10px; font-size: 12px; color: #6b7280; }
-    .error { color: #b91c1c; margin-bottom: 10px; font-size: 12px; }
-    .summary { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 8px; margin-bottom: 10px; }
-    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: #f9fafb; }
-    .card .k { font-size: 11px; color: #6b7280; }
-    .card .v { font-size: 15px; font-weight: 700; margin-top: 4px; }
-    .table-wrap { overflow: auto; max-height: 74vh; border: 1px solid #e5e7eb; border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; }
-    th, td { border-bottom: 1px solid #f1f5f9; padding: 7px 8px; white-space: nowrap; text-align: left; }
-    th { position: sticky; top: 0; background: #f8fafc; z-index: 2; }
-    tr.total { background: #eff6ff; font-weight: 700; }
-    td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .meta { margin-top: 8px; font-size: 11px; color: #6b7280; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", "Segoe UI", Tahoma, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% -8%, #d4f7e4 0, transparent 30%),
+        radial-gradient(circle at 100% 0, #ffe9d0 0, transparent 30%),
+        var(--bg);
+    }
+
+    .app { display: grid; grid-template-columns: 270px 1fr; min-height: 100vh; }
+    .nav { background: linear-gradient(180deg, var(--nav), #10253b); color: #d8e4f2; padding: 22px 16px; }
+    .brand { border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px; padding: 12px; margin-bottom: 18px; }
+    .brand b { display: block; font-size: 17px; margin-top: 4px; }
+    .brand small { color: #9bb0c7; }
+    .nav h4 { font-size: 11px; color: #8ea6c0; letter-spacing: .08em; text-transform: uppercase; margin: 14px 0 8px; }
+    .item { width: 100%; border: 1px solid transparent; border-radius: 10px; background: transparent; color: inherit; padding: 10px; text-align: left; font-size: 13px; margin-bottom: 6px; }
+    .item.active { background: linear-gradient(135deg, #123a5c, #19486a); border-color: rgba(144, 194, 223, .5); }
+    .item.disabled { opacity: .72; background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.08); }
+    .item span { display: block; margin-top: 4px; font-size: 11px; color: #93b8a4; }
+
+    .main { padding: 22px; }
+    .top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+    .top h1 { margin: 4px 0 6px; font-size: 30px; line-height: 1.1; }
+    .crumb { color: #64748b; font-size: 12px; }
+    .desc { margin: 0; color: var(--muted); font-size: 14px; max-width: 760px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .chip, .btn {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #fff;
+      font-size: 12px;
+    }
+    .btn { cursor: pointer; font-weight: 700; font-size: 13px; }
+    .btn.primary { background: linear-gradient(135deg, #0f766e, #13644f); border-color: #0f766e; color: #fff; }
+
+    .grid { display: grid; grid-template-columns: 360px 1fr; gap: 14px; align-items: start; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .cfg { padding: 12px; max-height: calc(100vh - 34px); overflow: auto; position: sticky; top: 10px; }
+    .box { border: 1px solid #e8eef6; border-radius: 12px; background: #fff; padding: 10px; margin-bottom: 10px; }
+    .box h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    .hint { color: #64748b; font-size: 12px; margin: 0 0 8px; }
+    .row { display: flex; justify-content: space-between; gap: 8px; padding: 7px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 6px; font-size: 13px; align-items: center; }
+    .row small { display: block; font-size: 11px; color: #64748b; }
+    .row input[type="checkbox"], .row input[type="radio"] { width: 15px; height: 15px; accent-color: #0f766e; }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .metric { border: 1px solid var(--line); border-radius: 9px; padding: 7px; display: flex; gap: 6px; font-size: 12px; }
+    .metric small { color: #64748b; display: block; }
+    .tools { display: flex; gap: 8px; margin-bottom: 8px; }
+    .tools .btn { padding: 7px 9px; font-size: 12px; }
+    .f { border: 1px dashed #c8d6ea; border-radius: 10px; background: #fbfdff; padding: 8px; margin-bottom: 7px; }
+    .fgrid { display: grid; grid-template-columns: 1.2fr .9fr 1fr auto; gap: 7px; }
+    .fgrid.between { grid-template-columns: 1.1fr .8fr .7fr .7fr auto; }
+    select, input[type="text"], input[type="number"] {
+      width: 100%;
+      border: 1px solid #cfd9e8;
+      border-radius: 8px;
+      padding: 7px 8px;
+      font: inherit;
+      font-size: 13px;
+      background: #fff;
+    }
+    .icon { width: 34px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; }
+
+    .view { display: grid; gap: 10px; }
+    .status { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 10px; font-size: 13px; color: #475569; }
+    .status.err { border-color: #f2cdcd; background: #fff7f7; color: #842029; }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag { border: 1px solid #dbe4f1; border-radius: 999px; background: #f2f6fb; padding: 4px 8px; font-size: 11px; }
+
+    .sum { padding: 11px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+    .card { border: 1px solid var(--line); border-radius: 11px; background: linear-gradient(135deg, #fff, #f9fbff); padding: 11px; animation: rise .22s ease both; }
+    .card .l { font-size: 12px; color: #64748b; margin-bottom: 7px; }
+    .card .v { font-size: 20px; font-weight: 800; line-height: 1.05; }
+    .pos { color: var(--good); } .neg { color: var(--bad); }
+
+    .table-top { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding: 10px 12px; background: #f8fafd; font-size: 12px; color: #475569; }
+    .wrap { max-height: calc(100vh - 320px); overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 960px; }
+    thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: #f5f9fd; border-bottom: 1px solid var(--line); border-right: 1px solid #edf2f8;
+      padding: 8px; white-space: nowrap; text-align: left;
+    }
+    thead tr:nth-child(2) th { top: 34px; background: #fcfdff; }
+    tbody td { border-bottom: 1px solid #eef3f8; border-right: 1px solid #f6f8fc; padding: 8px; white-space: nowrap; }
+    tbody tr:nth-child(even) td { background: #fcfdff; }
+    tbody tr.total td { background: #f1f8f8; font-weight: 800; border-top: 1px solid #cce4e0; }
+    td.metricv { text-align: right; font-variant-numeric: tabular-nums; }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 1220px) { .grid { grid-template-columns: 1fr; } .cfg { position: static; max-height: none; } }
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+      .main { padding: 14px; }
+      .top h1 { font-size: 24px; }
+      .fgrid, .fgrid.between { grid-template-columns: 1fr; }
+      .metric-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="header">
-      <h1>Live Profit and Loss Report</h1>
-      <p>Source: ClickHouse model_sales via /api/pnl endpoints</p>
-    </div>
+  <div class="app">
+    <aside class="nav">
+      <div class="brand">
+        <small>Reporting Suite</small>
+        <b>Finance Analytics</b>
+        <small>Collection v1</small>
+      </div>
+      <h4>Finance reports</h4>
+      <button class="item active" type="button">Profit and Loss<span>Report 01 - Live</span></button>
+      <button class="item disabled" type="button">Revenue Waterfall<span>Coming soon</span></button>
+      <button class="item disabled" type="button">Cost Allocation<span>Coming soon</span></button>
+      <h4>Operations reports</h4>
+      <button class="item disabled" type="button">Vendor Efficiency<span>Coming soon</span></button>
+      <button class="item disabled" type="button">Fulfillment Health<span>Coming soon</span></button>
+    </aside>
 
-    <div class="layout">
-      <section class="panel">
-        <div class="panel-head">Configuration</div>
-        <div class="panel-body">
-          <div class="grid2">
-            <div class="group">
-              <label for="rowDim">Row Dimension</label>
-              <select id="rowDim"></select>
-            </div>
-            <div class="group">
-              <label for="colDim">Column Dimension</label>
-              <select id="colDim"></select>
-            </div>
-          </div>
-
-          <div class="group">
-            <label>Metrics</label>
-            <div id="metricList" class="metrics"></div>
-          </div>
-
-          <div class="group">
-            <label for="fYear">Year</label>
-            <select id="fYear"><option value="">All</option></select>
-          </div>
-
-          <div class="grid2">
-            <div class="group">
-              <label for="fYmFrom">Year-Month From</label>
-              <select id="fYmFrom"><option value="">Any</option></select>
-            </div>
-            <div class="group">
-              <label for="fYmTo">Year-Month To</label>
-              <select id="fYmTo"><option value="">Any</option></select>
-            </div>
-          </div>
-
-          <div class="group">
-            <label for="fCat1">Category L1</label>
-            <select id="fCat1"><option value="">All</option></select>
-          </div>
-
-          <div class="group">
-            <label for="fCat2">Category L2</label>
-            <select id="fCat2"><option value="">All</option></select>
-          </div>
-
-          <div class="grid2">
-            <div class="group">
-              <label for="fCustProv">Customer Province</label>
-              <select id="fCustProv"><option value="">All</option></select>
-            </div>
-            <div class="group">
-              <label for="fVendProv">Vendor Province</label>
-              <select id="fVendProv"><option value="">All</option></select>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button id="btnRun" class="btn primary">Run Report</button>
-            <button id="btnReset" class="btn">Reset</button>
-          </div>
+    <main class="main">
+      <div class="top">
+        <div>
+          <div class="crumb">Reporting Suite / Finance / Profit and Loss</div>
+          <h1>Profit and Loss Explorer</h1>
+          <p class="desc">P&L is the first report in a multi-report analytics product. It uses shared filters and metric definitions so future reports can plug into the same report shell.</p>
         </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">Report</div>
-        <div class="panel-body">
-          <div id="status" class="status">Loading filter options...</div>
-          <div id="error" class="error" style="display:none"></div>
-          <div id="summary" class="summary"></div>
-          <div class="table-wrap">
-            <table id="reportTable"></table>
-          </div>
-          <div id="meta" class="meta"></div>
+        <div class="actions">
+          <span id="lastRefresh" class="chip">Last refresh: -</span>
+          <span id="sourceTag" class="chip">Data source: ClickHouse</span>
+          <button id="refreshBtn" class="btn primary" type="button">Refresh</button>
+          <button id="exportBtn" class="btn" type="button">Export CSV</button>
         </div>
-      </section>
-    </div>
+      </div>
+
+      <div class="grid">
+        <section id="cfg" class="panel cfg">
+          <div class="box">
+            <h3>Row attributes</h3>
+            <p class="hint">Select up to 4 row dimensions.</p>
+            <div id="rowDims"></div>
+          </div>
+          <div class="box">
+            <h3>Column attribute</h3>
+            <p class="hint">Choose one time dimension.</p>
+            <div id="colDims"></div>
+          </div>
+          <div class="box">
+            <h3>Metrics</h3>
+            <p class="hint">Select at least 1 and at most 10.</p>
+            <div id="metrics" class="metric-grid"></div>
+          </div>
+          <div class="box">
+            <h3>Filters</h3>
+            <p class="hint">Operators: equals, not equals, in, not in, greater than, less than, between.</p>
+            <div class="tools">
+              <button id="addFilter" class="btn" type="button">Add filter</button>
+              <button id="clearFilter" class="btn" type="button">Clear all</button>
+            </div>
+            <div id="filters"></div>
+          </div>
+          <div class="box">
+            <h3>Display options</h3>
+            <label class="row"><span>Show totals<small>Totals row and totals column</small></span><input id="showTotals" type="checkbox" checked></label>
+            <label class="row"><span>Comparison mode<small>Reserved for next iteration</small></span><input id="comparison" type="checkbox"></label>
+          </div>
+        </section>
+
+        <section class="view">
+          <div id="status" class="status">Loading filter catalog...</div>
+          <div id="tags" class="tags"></div>
+          <section id="summary" class="panel sum"></section>
+          <section class="panel">
+            <div class="table-top">
+              <span id="rowCount">Rows: -</span>
+              <span id="generated">Generated: -</span>
+            </div>
+            <div class="wrap">
+              <table>
+                <thead id="thead"></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
   </div>
 
   <script>
-    const DIMENSIONS = {
-      category_l1: { id: 'category_l1', name: 'Category L1', field: 'cat_lvl1_title', table: 'model_sales', level: 0 },
-      category_l2: { id: 'category_l2', name: 'Category L2', field: 'cat_lvl2_title', table: 'model_sales', level: 1, parentDimension: 'category_l1' },
-      category_l3: { id: 'category_l3', name: 'Category L3', field: 'cat_lvl3_title', table: 'model_sales', level: 2, parentDimension: 'category_l2' },
-      customer_province: { id: 'customer_province', name: 'Customer Province', field: 'customer_province_title', table: 'model_sales', level: 0 },
-      vendor_province: { id: 'vendor_province', name: 'Vendor Province', field: 'vendor_province_title', table: 'model_sales', level: 0 },
-      customer_type: { id: 'customer_type', name: 'Customer Type', field: 'customer_type_id', table: 'model_sales', level: 0 },
-      vendor_type: { id: 'vendor_type', name: 'Vendor Type', field: 'vendor_type_id', table: 'model_sales', level: 0 },
-      year: { id: 'year', name: 'Year', field: 'persian_year', table: 'model_sales', level: 0 },
-      year_month: { id: 'year_month', name: 'Year-Month', field: 'persiandate_purchase_yearmonth', table: 'model_sales', level: 1, parentDimension: 'year' },
-      month: { id: 'month', name: 'Month', field: 'persian_month', table: 'model_sales', level: 2, parentDimension: 'year_month' }
+    const API = "/api/pnl";
+    const MAX_ROW = 4;
+    const MAX_METRIC = 10;
+
+    const DIMENSIONS = [
+      { id: "category_l1", name: "Category L1", field: "cat_lvl1_title", table: "model_sales", group: "Product", level: 0 },
+      { id: "category_l2", name: "Category L2", field: "cat_lvl2_title", table: "model_sales", group: "Product", level: 1, parentDimension: "category_l1" },
+      { id: "category_l3", name: "Category L3", field: "cat_lvl3_title", table: "model_sales", group: "Product", level: 2, parentDimension: "category_l2" },
+      { id: "item_id", name: "Item ID", field: "item_id", table: "model_sales", group: "Product", level: 3, parentDimension: "category_l3" },
+      { id: "customer_province", name: "Customer Province", field: "customer_province_title", table: "model_sales", group: "Geo", level: 0 },
+      { id: "vendor_province", name: "Vendor Province", field: "vendor_province_title", table: "model_sales", group: "Geo", level: 0 },
+      { id: "customer_type", name: "Customer Type", field: "customer_type_id", table: "model_sales", group: "Geo", level: 0 },
+      { id: "vendor_type", name: "Vendor Type", field: "vendor_type_id", table: "model_sales", group: "Geo", level: 0 },
+      { id: "year", name: "Persian Year", field: "persian_year", table: "model_sales", group: "Time", level: 0 },
+      { id: "year_month", name: "Year-Month", field: "persiandate_purchase_yearmonth", table: "model_sales", group: "Time", level: 1, parentDimension: "year" },
+      { id: "month", name: "Month", field: "persian_month", table: "model_sales", group: "Time", level: 2, parentDimension: "year_month" }
+    ];
+    const TIME_DIMS = DIMENSIONS.filter((d) => d.group === "Time");
+
+    const METRICS = [
+      { id: "orders", name: "Orders", field: "order_id", table: "model_sales", aggregation: "countDistinct", format: "integer", decimals: 0, family: "Volume" },
+      { id: "items", name: "Items", field: "item_id", table: "model_sales", aggregation: "count", format: "integer", decimals: 0, family: "Volume" },
+      { id: "gmv", name: "GMV", field: "gmv", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
+      { id: "refund_amount", name: "Refund Amount", field: "refund_amount", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
+      { id: "delivery_cost", name: "Delivery Cost", field: "delivery_cost", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
+      { id: "vendor_discount", name: "Vendor Discount", field: "vendor_discount", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
+      { id: "commission", name: "Commission", field: "commission", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Revenue" },
+      { id: "satisfaction_commission", name: "Satisfaction Commission", field: "satisfaction_commission", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Revenue" },
+      { id: "service_fee", name: "Service Fee", field: "service_fee", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Fees" },
+      { id: "penalty", name: "Penalty", field: "penalty", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Fees" },
+      { id: "nmv", name: "NMV", field: "nmv", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "GMV & NMV", type: "calculated", dependencies: ["gmv", "refund_amount", "delivery_cost", "vendor_discount"] },
+      { id: "main_revenue", name: "Main Revenue", field: "main_revenue", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Revenue", type: "calculated", dependencies: ["commission", "satisfaction_commission"] },
+      { id: "total_fee", name: "Total Fee", field: "total_fee", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Fees", type: "calculated", dependencies: ["service_fee", "penalty"] },
+      { id: "avg_order_value", name: "Avg Order Value", field: "avg_order_value", table: "calculated", aggregation: "custom", format: "currency", decimals: 2, family: "Volume", type: "calculated", dependencies: ["gmv", "orders"] }
+    ];
+
+    const OPS = [
+      { id: "equals", name: "equals" },
+      { id: "notEquals", name: "not equals" },
+      { id: "in", name: "in list" },
+      { id: "notIn", name: "not in list" },
+      { id: "greaterThan", name: "greater than" },
+      { id: "lessThan", name: "less than" },
+      { id: "between", name: "between" }
+    ];
+    const NUMERIC = new Set(["item_id", "customer_type", "vendor_type", "year", "year_month", "month"]);
+
+    const S = {
+      filterOptions: {},
+      rowIds: ["category_l1"],
+      colId: "year_month",
+      metricIds: ["orders", "gmv", "nmv", "main_revenue"],
+      filters: [],
+      showTotals: true,
+      comparison: false,
+      report: null
     };
 
-    const METRICS = {
-      orders: { id: 'orders', name: 'Orders', field: 'order_id', table: 'model_sales', aggregation: 'countDistinct', format: 'integer', decimals: 0 },
-      items: { id: 'items', name: 'Items', field: 'item_id', table: 'model_sales', aggregation: 'count', format: 'integer', decimals: 0 },
-      gmv: { id: 'gmv', name: 'GMV', field: 'gmv', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      refund_amount: { id: 'refund_amount', name: 'Refund Amount', field: 'refund_amount', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      delivery_cost: { id: 'delivery_cost', name: 'Delivery Cost', field: 'delivery_cost', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      vendor_discount: { id: 'vendor_discount', name: 'Vendor Discount', field: 'vendor_discount', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      commission: { id: 'commission', name: 'Commission', field: 'commission', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      satisfaction_commission: { id: 'satisfaction_commission', name: 'Satisfaction Commission', field: 'satisfaction_commission', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      service_fee: { id: 'service_fee', name: 'Service Fee', field: 'service_fee', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      penalty: { id: 'penalty', name: 'Penalty', field: 'penalty', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
-      nmv: { id: 'nmv', name: 'NMV', field: 'nmv', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 0, dependencies: ['gmv','refund_amount','delivery_cost','vendor_discount'] },
-      main_revenue: { id: 'main_revenue', name: 'Main Revenue', field: 'main_revenue', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 0, dependencies: ['commission','satisfaction_commission'] },
-      total_fee: { id: 'total_fee', name: 'Total Fee', field: 'total_fee', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 0, dependencies: ['service_fee','penalty'] },
-      avg_order_value: { id: 'avg_order_value', name: 'Avg Order Value', field: 'avg_order_value', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 2, dependencies: ['gmv','orders'] }
+    const E = {
+      rowDims: document.getElementById("rowDims"),
+      colDims: document.getElementById("colDims"),
+      metrics: document.getElementById("metrics"),
+      filters: document.getElementById("filters"),
+      status: document.getElementById("status"),
+      summary: document.getElementById("summary"),
+      thead: document.getElementById("thead"),
+      tbody: document.getElementById("tbody"),
+      tags: document.getElementById("tags"),
+      rowCount: document.getElementById("rowCount"),
+      generated: document.getElementById("generated"),
+      lastRefresh: document.getElementById("lastRefresh"),
+      sourceTag: document.getElementById("sourceTag"),
+      addFilter: document.getElementById("addFilter"),
+      clearFilter: document.getElementById("clearFilter"),
+      refreshBtn: document.getElementById("refreshBtn"),
+      exportBtn: document.getElementById("exportBtn"),
+      showTotals: document.getElementById("showTotals"),
+      comparison: document.getElementById("comparison"),
+      cfg: document.getElementById("cfg")
     };
 
-    const $ = (id) => document.getElementById(id);
-    const state = {
-      options: {},
-      report: null,
-      defaultMetrics: ['orders', 'gmv', 'nmv', 'main_revenue']
-    };
+    const byDim = (id) => DIMENSIONS.find((d) => d.id === id);
+    const byMetric = (id) => METRICS.find((m) => m.id === id);
+    const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    const ts = (v) => { if (!v) return "-"; const d = new Date(v); return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString(); };
+    const fnew = () => ({ uid: `f_${Date.now()}_${Math.floor(Math.random() * 1000)}`, dimensionId: "year", operator: "equals", valueA: "", valueB: "" });
 
-    function setStatus(message) { $('status').textContent = message; }
-    function setError(message) {
-      const box = $('error');
-      if (!message) { box.style.display = 'none'; box.textContent = ''; return; }
-      box.style.display = 'block';
-      box.textContent = message;
+    function setStatus(msg, err) {
+      E.status.textContent = msg;
+      E.status.classList.toggle("err", Boolean(err));
     }
 
-    function fillSelect(id, values) {
-      const select = $(id);
-      const first = select.querySelector('option');
-      select.innerHTML = '';
-      if (first) select.appendChild(first);
-      for (const value of values || []) {
-        const option = document.createElement('option');
-        option.value = String(value);
-        option.textContent = String(value);
-        select.appendChild(option);
+    function parseV(dimId, raw) {
+      const t = String(raw ?? "").trim();
+      if (!t) return null;
+      if (!NUMERIC.has(dimId)) return t;
+      const n = Number(t);
+      return Number.isNaN(n) ? t : n;
+    }
+
+    function serialFilter(f) {
+      const d = byDim(f.dimensionId);
+      if (!d) return null;
+      if (f.operator === "between") {
+        const a = parseV(d.id, f.valueA), b = parseV(d.id, f.valueB);
+        if (a === null || b === null) return null;
+        return { dimension: d, operator: f.operator, value: [a, b] };
       }
+      if (f.operator === "in" || f.operator === "notIn") {
+        const parts = String(f.valueA || "").split(",").map((x) => x.trim()).filter(Boolean);
+        const vals = parts.map((x) => parseV(d.id, x)).filter((x) => x !== null);
+        if (!vals.length) return null;
+        return { dimension: d, operator: f.operator, value: vals };
+      }
+      const v = parseV(d.id, f.valueA);
+      if (v === null) return null;
+      return { dimension: d, operator: f.operator, value: v };
     }
 
-    function selectedMetrics() {
-      return Array.from(document.querySelectorAll('#metricList input[type=checkbox]:checked'))
-        .map((input) => METRICS[input.value]);
-    }
-
-    function renderMetricList() {
-      const holder = $('metricList');
-      holder.innerHTML = '';
-      Object.values(METRICS).forEach((metric) => {
-        const id = `m_${metric.id}`;
-        const label = document.createElement('label');
-        label.innerHTML = `<input id="${id}" type="checkbox" value="${metric.id}" ${state.defaultMetrics.includes(metric.id) ? 'checked' : ''}> ${metric.name}`;
-        holder.appendChild(label);
-      });
-    }
-
-    function renderDimensionSelects() {
-      const row = $('rowDim');
-      const col = $('colDim');
-      row.innerHTML = '';
-      col.innerHTML = '';
-
-      ['category_l1','category_l2','category_l3','customer_province','vendor_province','customer_type','vendor_type','year'].forEach((id) => {
-        const option = document.createElement('option');
-        option.value = id;
-        option.textContent = DIMENSIONS[id].name;
-        row.appendChild(option);
-      });
-      row.value = 'category_l1';
-
-      ['year_month','year','month'].forEach((id) => {
-        const option = document.createElement('option');
-        option.value = id;
-        option.textContent = DIMENSIONS[id].name;
-        col.appendChild(option);
-      });
-      col.value = 'year_month';
-    }
-
-    function buildFilters() {
-      const filters = [];
-      const pushEquals = (dimensionId, value) => {
-        if (!value) return;
-        filters.push({ dimension: DIMENSIONS[dimensionId], operator: 'equals', value });
+    function payload() {
+      const rows = S.rowIds.map(byDim).filter(Boolean);
+      const col = byDim(S.colId) || byDim("year_month");
+      const mets = S.metricIds.map(byMetric).filter(Boolean);
+      if (!rows.length) rows.push(byDim("category_l1"));
+      if (!mets.length) mets.push(byMetric("orders"));
+      const fs = S.filters.map(serialFilter).filter(Boolean);
+      return {
+        rowDimensions: rows,
+        columnDimensions: [col],
+        metrics: mets,
+        filters: fs,
+        comparison: { enabled: S.comparison, type: "yoy" },
+        options: { showTotals: S.showTotals, showSubtotals: false, expandAll: false, collapseLevel: 0, currencyCode: "IRR" }
       };
+    }
 
-      pushEquals('year', $('fYear').value);
-      pushEquals('category_l1', $('fCat1').value);
-      pushEquals('category_l2', $('fCat2').value);
-      pushEquals('customer_province', $('fCustProv').value);
-      pushEquals('vendor_province', $('fVendProv').value);
+    async function apiFilters() {
+      const r = await fetch(`${API}/filter-options`);
+      if (!r.ok) throw new Error(`Filter options failed (${r.status}): ${await r.text()}`);
+      const p = await r.json();
+      S.filterOptions = p.options || {};
+      E.sourceTag.textContent = "Data source: ClickHouse";
+    }
 
-      const ymFrom = $('fYmFrom').value;
-      const ymTo = $('fYmTo').value;
-      if (ymFrom && ymTo) {
-        filters.push({
-          dimension: DIMENSIONS.year_month,
-          operator: 'between',
-          value: [ymFrom, ymTo]
-        });
+    async function apiReport() {
+      const r = await fetch(`${API}/report`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
+      if (!r.ok) throw new Error(`Report query failed (${r.status}): ${await r.text()}`);
+      return r.json();
+    }
+
+    function rowsHtml() {
+      E.rowDims.innerHTML = DIMENSIONS.map((d) => `
+        <label class="row"><span>${esc(d.name)}<small>${esc(d.group)} / ${esc(d.field)}</small></span><input type="checkbox" data-a="trow" data-id="${esc(d.id)}" ${S.rowIds.includes(d.id) ? "checked" : ""}></label>
+      `).join("");
+    }
+
+    function colsHtml() {
+      E.colDims.innerHTML = TIME_DIMS.map((d) => `
+        <label class="row"><span>${esc(d.name)}<small>${esc(d.field)}</small></span><input type="radio" name="col" data-a="col" data-id="${esc(d.id)}" ${S.colId === d.id ? "checked" : ""}></label>
+      `).join("");
+    }
+
+    function metricsHtml() {
+      E.metrics.innerHTML = METRICS.map((m) => `
+        <div class="metric"><input type="checkbox" data-a="met" data-id="${esc(m.id)}" ${S.metricIds.includes(m.id) ? "checked" : ""}><label>${esc(m.name)}<small>${esc(m.family)} / ${esc(m.type || "base")}</small></label></div>
+      `).join("");
+    }
+
+    function filterValue(f, i) {
+      const opts = S.filterOptions[f.dimensionId] || [];
+      const typ = NUMERIC.has(f.dimensionId) ? "number" : "text";
+      if (f.operator === "between") return `<input type="${typ}" data-fi="${i}" data-ff="valueA" value="${esc(f.valueA)}" placeholder="from"><input type="${typ}" data-fi="${i}" data-ff="valueB" value="${esc(f.valueB)}" placeholder="to">`;
+      if (f.operator === "in" || f.operator === "notIn") return `<input type="text" data-fi="${i}" data-ff="valueA" value="${esc(f.valueA)}" placeholder="comma separated list">`;
+      if (opts.length && opts.length <= 150) {
+        const lid = `dl_${i}_${f.dimensionId}`;
+        return `<input type="${typ}" list="${lid}" data-fi="${i}" data-ff="valueA" value="${esc(f.valueA)}"><datalist id="${lid}">${opts.map((o) => `<option value="${esc(o)}"></option>`).join("")}</datalist>`;
       }
-      return filters;
+      return `<input type="${typ}" data-fi="${i}" data-ff="valueA" value="${esc(f.valueA)}">`;
     }
 
-    async function loadFilterOptions() {
-      setStatus('Loading filter options...');
-      setError('');
-      const res = await fetch('/api/pnl/filter-options');
-      if (!res.ok) throw new Error(`Filter options failed: ${res.status}`);
-      const payload = await res.json();
-      state.options = payload.options || {};
-
-      fillSelect('fYear', state.options.year || []);
-      fillSelect('fYmFrom', state.options.year_month || []);
-      fillSelect('fYmTo', state.options.year_month || []);
-      fillSelect('fCat1', state.options.category_l1 || []);
-      fillSelect('fCat2', state.options.category_l2 || []);
-      fillSelect('fCustProv', state.options.customer_province || []);
-      fillSelect('fVendProv', state.options.vendor_province || []);
-
-      setStatus('Ready');
+    function filtersHtml() {
+      if (!S.filters.length) { E.filters.innerHTML = `<div class="hint">No filters selected.</div>`; return; }
+      E.filters.innerHTML = S.filters.map((f, i) => `
+        <div class="f"><div class="fgrid ${f.operator === "between" ? "between" : ""}">
+          <select data-fi="${i}" data-ff="dimensionId">${DIMENSIONS.map((d) => `<option value="${esc(d.id)}" ${f.dimensionId === d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}</select>
+          <select data-fi="${i}" data-ff="operator">${OPS.map((o) => `<option value="${esc(o.id)}" ${f.operator === o.id ? "selected" : ""}>${esc(o.name)}</option>`).join("")}</select>
+          ${filterValue(f, i)}
+          <button class="icon" data-a="rmf" data-fi="${i}" type="button">x</button>
+        </div></div>
+      `).join("");
     }
 
-    function formatCell(value) {
-      if (value === null || value === undefined) return '-';
-      if (typeof value === 'number') return value.toLocaleString('en-US');
-      return String(value);
+    function tagsHtml() {
+      const tags = [];
+      tags.push(`Row: ${S.rowIds.map((id) => byDim(id)?.name || id).join(" + ")}`);
+      tags.push(`Column: ${byDim(S.colId)?.name || S.colId}`);
+      tags.push(`Metrics: ${S.metricIds.length}`);
+      S.filters.forEach((f) => tags.push(`${byDim(f.dimensionId)?.name || f.dimensionId} ${f.operator} ${f.operator === "between" ? `${f.valueA}..${f.valueB}` : f.valueA}`));
+      E.tags.innerHTML = tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("");
     }
 
-    function renderSummary(report) {
-      const root = $('summary');
-      root.innerHTML = '';
-      if (!report || !report.rows || report.rows.length === 0) return;
-      const totalRow = report.rows.find((row) => row.isTotal);
-      if (!totalRow) return;
-      for (const metric of report.config.metrics) {
-        const cell = totalRow.cells[`total_${metric.id}`];
-        if (!cell) continue;
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `<div class="k">${metric.name}</div><div class="v">${cell.formattedValue}</div>`;
-        root.appendChild(card);
-      }
+    function summaryHtml(r) {
+      if (!r?.rows?.length) { E.summary.innerHTML = ""; return; }
+      const tr = r.rows.find((x) => x.isTotal) || r.rows[r.rows.length - 1];
+      E.summary.innerHTML = (r.config.metrics || []).map((m) => {
+        const c = tr.cells[`total_${m.id}`];
+        if (!c) return "";
+        return `<article class="card"><div class="l">${esc(m.name)}</div><div class="v ${Number(c.value || 0) < 0 ? "neg" : "pos"}">${esc(c.formattedValue || "-")}</div></article>`;
+      }).join("");
     }
 
-    function renderTable(report) {
-      const table = $('reportTable');
-      table.innerHTML = '';
-      if (!report || !report.rows || report.rows.length === 0) return;
-
-      const thead = document.createElement('thead');
-      const row1 = document.createElement('tr');
-      const row2 = document.createElement('tr');
-
-      const dimNames = report.config.rowDimensions.map((d) => d.name).join(' / ');
-      row1.innerHTML += `<th colspan="${report.config.rowDimensions.length}">${dimNames}</th>`;
-      report.columns.forEach((column) => {
-        row1.innerHTML += `<th colspan="${report.config.metrics.length}">${column.title}</th>`;
-      });
-      report.config.rowDimensions.forEach((dimension) => {
-        row2.innerHTML += `<th>${dimension.name}</th>`;
-      });
-      report.columns.forEach((column) => {
-        report.config.metrics.forEach((metric) => {
-          row2.innerHTML += `<th>${metric.name}</th>`;
-        });
-      });
-      thead.appendChild(row1);
-      thead.appendChild(row2);
-
-      const tbody = document.createElement('tbody');
-      report.rows.forEach((row) => {
-        const tr = document.createElement('tr');
-        if (row.isTotal) tr.className = 'total';
-
-        report.config.rowDimensions.forEach((dimension) => {
-          const td = document.createElement('td');
-          td.textContent = String(row.dimensions[dimension.id] ?? '');
-          tr.appendChild(td);
-        });
-
-        report.columns.forEach((column) => {
-          report.config.metrics.forEach((metric) => {
-            const key = `${column.key}_${metric.id}`;
-            const cell = row.cells[key];
-            const td = document.createElement('td');
-            td.className = 'num';
-            td.textContent = cell ? (cell.formattedValue || formatCell(cell.value)) : '-';
-            tr.appendChild(td);
-          });
-        });
-
-        tbody.appendChild(tr);
-      });
-
-      table.appendChild(thead);
-      table.appendChild(tbody);
+    function tableHtml(r) {
+      if (!r?.columns || !r?.rows) { E.thead.innerHTML = ""; E.tbody.innerHTML = ""; return; }
+      const rd = r.config.rowDimensions || [], ms = r.config.metrics || [], cs = r.columns || [];
+      E.thead.innerHTML = `<tr>${rd.map((d) => `<th>${esc(d.name)}</th>`).join("")}${cs.map((c) => `<th colspan="${ms.length}">${esc(c.title)}</th>`).join("")}</tr><tr>${rd.map((d) => `<th>${esc(d.name)}</th>`).join("")}${cs.map(() => ms.map((m) => `<th>${esc(m.name)}</th>`).join("")).join("")}</tr>`;
+      E.tbody.innerHTML = r.rows.map((row) => `
+        <tr class="${row.isTotal ? "total" : ""}">
+          ${rd.map((d) => `<td>${esc(row.dimensions?.[d.id] ?? "")}</td>`).join("")}
+          ${cs.map((c) => ms.map((m) => {
+            const cell = row.cells?.[`${c.key}_${m.id}`];
+            if (!cell) return `<td class="metricv">-</td>`;
+            const n = Number(cell.value || 0);
+            const tone = n < 0 ? "neg" : n > 0 ? "pos" : "";
+            return `<td class="metricv ${tone}">${esc(cell.formattedValue || "-")}</td>`;
+          }).join("")).join("")}
+        </tr>
+      `).join("");
+      E.rowCount.textContent = `Rows: ${r.metadata?.totalRows || r.rows.length || 0}`;
+      E.generated.textContent = `Generated: ${ts(r.metadata?.generatedAt)}`;
     }
 
-    async function runReport() {
-      const metrics = selectedMetrics();
-      if (metrics.length === 0) {
-        setError('Select at least one metric.');
-        return;
-      }
+    function render() {
+      rowsHtml();
+      colsHtml();
+      metricsHtml();
+      filtersHtml();
+      tagsHtml();
+      summaryHtml(S.report);
+      tableHtml(S.report);
+      E.showTotals.checked = S.showTotals;
+      E.comparison.checked = S.comparison;
+    }
 
-      const config = {
-        rowDimensions: [DIMENSIONS[$('rowDim').value]],
-        columnDimensions: [DIMENSIONS[$('colDim').value]],
-        metrics,
-        filters: buildFilters(),
-        comparison: { enabled: false, type: 'yoy' },
-        options: {
-          showTotals: true,
-          showSubtotals: false,
-          expandAll: false,
-          collapseLevel: 0,
-          currencyCode: 'IRR'
-        }
-      };
+    function lock(v) {
+      document.body.classList.toggle("loading", v);
+      E.refreshBtn.disabled = v;
+      E.exportBtn.disabled = v;
+      E.cfg.classList.toggle("loading", v);
+      if (v) setStatus("Running query and rendering report...", false);
+    }
 
-      const runButton = $('btnRun');
-      runButton.disabled = true;
-      setStatus('Running query...');
-      setError('');
-
+    async function reload() {
+      lock(true);
       try {
-        const res = await fetch('/api/pnl/report', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config)
-        });
-        if (!res.ok) {
-          let detail = `${res.status}`;
-          try {
-            const body = await res.json();
-            detail = body.detail || detail;
-          } catch (_) {}
-          throw new Error(`Report failed: ${detail}`);
+        S.report = await apiReport();
+        setStatus("Report loaded successfully.", false);
+        E.lastRefresh.textContent = `Last refresh: ${ts(new Date().toISOString())}`;
+        render();
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : String(e), true);
+        E.sourceTag.textContent = "Data source: unavailable";
+      } finally { lock(false); }
+    }
+
+    function csvCell(v) {
+      if (v === null || v === undefined) return "";
+      const t = String(v);
+      return t.includes(",") || t.includes('"') || t.includes("\n") ? `"${t.replace(/"/g, '""')}"` : t;
+    }
+
+    function exportCsv() {
+      const r = S.report;
+      if (!r?.rows?.length) { setStatus("No report data available for export.", true); return; }
+      const rd = r.config.rowDimensions || [], ms = r.config.metrics || [], cs = r.columns || [];
+      const head = [...rd.map((d) => d.name), ...cs.flatMap((c) => ms.map((m) => `${c.title} ${m.name}`))];
+      const rows = r.rows.map((row) => [
+        ...rd.map((d) => csvCell(row.dimensions?.[d.id] ?? "")),
+        ...cs.flatMap((c) => ms.map((m) => csvCell(row.cells?.[`${c.key}_${m.id}`]?.value ?? "")))
+      ]);
+      const text = [head.map(csvCell).join(","), ...rows.map((x) => x.join(","))].join("\n");
+      const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "pnl_report.csv"; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    function bind() {
+      E.refreshBtn.addEventListener("click", reload);
+      E.exportBtn.addEventListener("click", exportCsv);
+      E.addFilter.addEventListener("click", () => { S.filters.push(fnew()); render(); });
+      E.clearFilter.addEventListener("click", () => { S.filters = []; render(); });
+      E.showTotals.addEventListener("change", (ev) => { S.showTotals = Boolean(ev.target.checked); });
+      E.comparison.addEventListener("change", (ev) => { S.comparison = Boolean(ev.target.checked); });
+
+      E.cfg.addEventListener("change", (ev) => {
+        const t = ev.target;
+        if (!(t instanceof HTMLElement)) return;
+        const a = t.dataset.a || "";
+        if (a === "trow") {
+          const id = t.dataset.id; if (!id) return;
+          if (t.checked && !S.rowIds.includes(id)) {
+            if (S.rowIds.length >= MAX_ROW) { t.checked = false; setStatus(`Row dimensions are limited to ${MAX_ROW}.`, true); return; }
+            S.rowIds.push(id);
+          } else if (!t.checked && S.rowIds.includes(id)) {
+            S.rowIds = S.rowIds.filter((x) => x !== id);
+            if (!S.rowIds.length) { S.rowIds = ["category_l1"]; setStatus("At least one row dimension is required.", true); }
+          }
+          render(); return;
         }
-        state.report = await res.json();
-        renderSummary(state.report);
-        renderTable(state.report);
-        $('meta').textContent = `Generated: ${new Date(state.report.metadata.generatedAt).toLocaleString()} | Rows: ${state.report.metadata.totalRows}`;
-        setStatus('Done');
-      } catch (error) {
-        setError(error.message || String(error));
-        setStatus('Failed');
-      } finally {
-        runButton.disabled = false;
+        if (a === "col") { const id = t.dataset.id; if (!id) return; S.colId = id; render(); return; }
+        if (a === "met") {
+          const id = t.dataset.id; if (!id) return;
+          if (t.checked && !S.metricIds.includes(id)) {
+            if (S.metricIds.length >= MAX_METRIC) { t.checked = false; setStatus(`Metrics are limited to ${MAX_METRIC}.`, true); return; }
+            S.metricIds.push(id);
+          } else if (!t.checked && S.metricIds.includes(id)) {
+            S.metricIds = S.metricIds.filter((x) => x !== id);
+            if (!S.metricIds.length) { S.metricIds = ["orders"]; setStatus("At least one metric is required.", true); }
+          }
+          render(); return;
+        }
+
+        if (t.dataset.fi !== undefined) {
+          const i = Number(t.dataset.fi), f = S.filters[i], ff = t.dataset.ff;
+          if (!f || !ff) return;
+          f[ff] = t.value;
+          if (ff === "operator" && f.operator !== "between") f.valueB = "";
+          if (ff === "dimensionId") { f.valueA = ""; f.valueB = ""; }
+          render();
+        }
+      });
+
+      E.cfg.addEventListener("click", (ev) => {
+        const t = ev.target;
+        if (!(t instanceof HTMLElement)) return;
+        if ((t.dataset.a || "") === "rmf") {
+          const i = Number(t.dataset.fi);
+          if (Number.isNaN(i)) return;
+          S.filters.splice(i, 1);
+          render();
+        }
+      });
+    }
+
+    async function boot() {
+      bind();
+      render();
+      try {
+        await apiFilters();
+        setStatus("Filter catalog loaded. You can now query P&L.", false);
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : String(e), true);
+        E.sourceTag.textContent = "Data source: unavailable";
       }
+      await reload();
     }
 
-    function resetControls() {
-      $('rowDim').value = 'category_l1';
-      $('colDim').value = 'year_month';
-      document.querySelectorAll('#metricList input[type=checkbox]').forEach((input) => {
-        input.checked = state.defaultMetrics.includes(input.value);
-      });
-      ['fYear','fYmFrom','fYmTo','fCat1','fCat2','fCustProv','fVendProv'].forEach((id) => {
-        $(id).value = '';
-      });
-    }
-
-    $('btnRun').addEventListener('click', runReport);
-    $('btnReset').addEventListener('click', () => {
-      resetControls();
-      setError('');
-      setStatus('Ready');
-    });
-
-    (async function init() {
-      renderDimensionSelects();
-      renderMetricList();
-      await loadFilterOptions();
-      await runReport();
-    })().catch((error) => {
-      setError(error.message || String(error));
-      setStatus('Init failed');
-    });
+    boot();
   </script>
 </body>
 </html>
