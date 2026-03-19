@@ -154,6 +154,7 @@
     tbody tr.total td { background: #f1f8f8; font-weight: 800; border-top: 1px solid #cce4e0; }
     td.metricv { text-align: right; font-variant-numeric: tabular-nums; }
     td.metric-name { font-weight: 700; color: #334155; background: #fbfdff; }
+    td.metric-name.child { font-weight: 600; color: #516172; }
     tr.section-row td {
       background: #edf4ff;
       color: #1e3a5f;
@@ -329,16 +330,23 @@
     ];
 
     const METRIC_GROUPS = [
-      { id: "volume", title: "Volume Metrics", metricIds: ["orders", "items", "avg_order_value"] },
-      { id: "gmv", title: "GMV & NMV", metricIds: ["gmv", "refund_amount", "delivery_cost", "vendor_discount", "nmv"] },
-      { id: "revenue", title: "Main Revenue", metricIds: ["commission", "ads", "main_revenue"] },
-      { id: "cor", title: "Cost of Revenue", metricIds: ["cost_of_revenue", "vouchers_crc", "general_cost_crc", "marketing_crc", "vat", "pc1"] },
-      { id: "fees", title: "Fees", metricIds: ["signup_fee", "penalty", "service_fee", "total_fee"] },
-      { id: "pc2", title: "Customer Support & PC2", metricIds: ["customer_support_costs", "pc2"] },
-      { id: "pc3", title: "Brand & Marketing NC", metricIds: ["brand_costs", "vouchers_nc", "general_cost_nc", "marketing_nc", "pc3"] },
-      { id: "ebitda", title: "EBITDA", metricIds: ["ga_costs", "hr_costs", "ebitda"] }
+      { id: "volume", title: "Volume Metrics", items: [{ id: "orders" }, { id: "items" }, { id: "avg_order_value" }] },
+      { id: "gmv", title: "GMV & NMV", items: [{ id: "gmv" }, { id: "refund_amount" }, { id: "delivery_cost" }, { id: "vendor_discount" }, { id: "nmv" }] },
+      { id: "revenue", title: "Main Revenue", items: [{ id: "main_revenue" }, { id: "commission", depth: 1 }, { id: "ads", depth: 1 }] },
+      { id: "pc1_bridge", title: "PC1 Bridge", items: [{ id: "cost_of_revenue" }, { id: "marketing_crc" }, { id: "vouchers_crc", depth: 1 }, { id: "general_cost_crc", depth: 1 }, { id: "vat" }, { id: "pc1" }] },
+      { id: "pc2_bridge", title: "PC2 Bridge", items: [{ id: "total_fee" }, { id: "signup_fee", depth: 1 }, { id: "penalty", depth: 1 }, { id: "service_fee", depth: 1 }, { id: "customer_support_costs" }, { id: "pc2" }] },
+      { id: "pc3_bridge", title: "PC3 Bridge", items: [{ id: "brand_costs" }, { id: "marketing_nc" }, { id: "vouchers_nc", depth: 1 }, { id: "general_cost_nc", depth: 1 }, { id: "pc3" }] },
+      { id: "ebitda", title: "EBITDA", items: [{ id: "ga_costs" }, { id: "hr_costs" }, { id: "ebitda" }] }
     ];
     const MAX_METRIC = METRICS.length;
+    const METRIC_ORDER = new Map();
+    const METRIC_DEPTH = new Map();
+    METRIC_GROUPS.forEach((group) => {
+      (group.items || []).forEach((item) => {
+        if (!METRIC_ORDER.has(item.id)) METRIC_ORDER.set(item.id, METRIC_ORDER.size);
+        METRIC_DEPTH.set(item.id, item.depth || 0);
+      });
+    });
 
     const OPS = [
       { id: "equals", name: "equals" },
@@ -469,7 +477,8 @@
     }
 
     function metricsHtml() {
-      E.metrics.innerHTML = METRICS.map((m) => `
+      const sortedMetrics = [...METRICS].sort((a, b) => (METRIC_ORDER.get(a.id) ?? 9999) - (METRIC_ORDER.get(b.id) ?? 9999));
+      E.metrics.innerHTML = sortedMetrics.map((m) => `
         <div class="metric"><input type="checkbox" data-a="met" data-id="${esc(m.id)}" ${S.metricIds.includes(m.id) ? "checked" : ""}><label>${esc(m.name)}<small>${esc(m.family)} / ${esc(m.type || "base")}</small></label></div>
       `).join("");
     }
@@ -511,7 +520,8 @@
     function summaryHtml(r) {
       if (!r?.rows?.length) { E.summary.innerHTML = ""; return; }
       const tr = r.rows.find((x) => x.isTotal) || r.rows[r.rows.length - 1];
-      E.summary.innerHTML = (r.config.metrics || []).map((m) => {
+      const ordered = [...(r.config.metrics || [])].sort((a, b) => (METRIC_ORDER.get(a.id) ?? 9999) - (METRIC_ORDER.get(b.id) ?? 9999));
+      E.summary.innerHTML = ordered.map((m) => {
         const c = tr.cells[`total_${m.id}`];
         if (!c) return "";
         return `<article class="card"><div class="l">${esc(m.name)}</div><div class="v ${Number(c.value || 0) < 0 ? "neg" : "pos"}">${esc(c.formattedValue || "-")}</div></article>`;
@@ -523,12 +533,21 @@
       const used = new Set();
       const sections = [];
       METRIC_GROUPS.forEach((group) => {
-        const ms = group.metricIds.map((id) => byIdMap.get(id)).filter(Boolean);
+        const ms = (group.items || [])
+          .map((item) => {
+            const metric = byIdMap.get(item.id);
+            if (!metric) return null;
+            return { metric, depth: item.depth || 0 };
+          })
+          .filter(Boolean);
         if (!ms.length) return;
-        ms.forEach((m) => used.add(m.id));
+        ms.forEach((m) => used.add(m.metric.id));
         sections.push({ id: group.id, title: group.title, metrics: ms });
       });
-      const rest = (reportMetrics || []).filter((m) => !used.has(m.id));
+      const rest = (reportMetrics || [])
+        .filter((m) => !used.has(m.id))
+        .sort((a, b) => (METRIC_ORDER.get(a.id) ?? 9999) - (METRIC_ORDER.get(b.id) ?? 9999))
+        .map((metric) => ({ metric, depth: METRIC_DEPTH.get(metric.id) || 0 }));
       if (rest.length) sections.push({ id: "other", title: "Other Metrics", metrics: rest });
       return sections;
     }
@@ -791,7 +810,9 @@
         `);
 
         if (collapsed) return;
-        section.metrics.forEach((metric) => {
+        section.metrics.forEach((metricItem) => {
+          const metric = metricItem.metric || metricItem;
+          const depth = Number(metricItem.depth || 0);
           const metricCells = cols.map((col) => {
             const cell = metricCellForColumn(col, r, metric);
             if (!cell) return `<td class="metricv">-</td>`;
@@ -799,7 +820,7 @@
             const tone = n < 0 ? "neg" : n > 0 ? "pos" : "";
             return `<td class="metricv ${tone}">${esc(cell.formattedValue || "-")}</td>`;
           }).join("");
-          bodyParts.push(`<tr><td class="metric-name">${esc(metric.name)}</td>${metricCells}</tr>`);
+          bodyParts.push(`<tr><td class="metric-name${depth ? " child" : ""}" style="${depth ? `padding-left:${12 + (depth * 16)}px;` : ""}">${esc(metric.name)}</td>${metricCells}</tr>`);
         });
       });
 
@@ -857,9 +878,11 @@
       const rows = [];
       sections.forEach((section) => {
         rows.push([`[${section.title}]`, ...cols.map(() => "")]);
-        section.metrics.forEach((metric) => {
+        section.metrics.forEach((metricItem) => {
+          const metric = metricItem.metric || metricItem;
+          const depth = Number(metricItem.depth || 0);
           const values = cols.map((col) => metricCellForColumn(col, r, metric)?.value ?? "");
-          rows.push([metric.name, ...values]);
+          rows.push([`${"  ".repeat(depth)}${metric.name}`, ...values]);
         });
       });
       const text = [
