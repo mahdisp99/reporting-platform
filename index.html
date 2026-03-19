@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -110,6 +110,25 @@
       background: #f5f9fd; border-bottom: 1px solid var(--line); border-right: 1px solid #edf2f8;
       padding: 8px; white-space: nowrap; text-align: left;
     }
+    thead tr:nth-child(1) th { top: 0; z-index: 7; }
+    thead tr:nth-child(2) th { top: 34px; z-index: 6; }
+    thead tr:nth-child(3) th { top: 68px; z-index: 5; }
+    thead tr:nth-child(4) th { top: 102px; z-index: 4; }
+    thead tr:nth-child(5) th { top: 136px; z-index: 3; }
+    th.col-head { background: #f3f7fc; }
+    .col-btn {
+      border: 1px solid #b9cde9;
+      background: #fff;
+      color: #1e3a5f;
+      border-radius: 7px;
+      width: 22px;
+      height: 20px;
+      margin-right: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 800;
+    }
     tbody td { border-bottom: 1px solid #eef3f8; border-right: 1px solid #f6f8fc; padding: 8px; white-space: nowrap; }
     tbody tr:nth-child(even) td { background: #fcfdff; }
     tbody tr.total td { background: #f1f8f8; font-weight: 800; border-top: 1px solid #cce4e0; }
@@ -184,8 +203,8 @@
       <div class="grid">
         <section id="cfg" class="panel cfg">
           <div class="box">
-            <h3>Row attributes</h3>
-            <p class="hint">Select up to 4 row dimensions.</p>
+            <h3>Column variables</h3>
+            <p class="hint">Select up to 4 attributes. They will be rendered as layered columns with expand/collapse.</p>
             <div id="rowDims"></div>
           </div>
           <div class="box">
@@ -321,6 +340,7 @@
       showTotals: true,
       comparison: false,
       collapsedSections: new Set(),
+      collapsedColumnNodes: new Set(),
       report: null
     };
 
@@ -460,7 +480,7 @@
 
     function tagsHtml() {
       const tags = [];
-      tags.push(`Row: ${S.rowIds.map((id) => byDim(id)?.name || id).join(" + ")}`);
+      tags.push(`Column variables: ${S.rowIds.map((id) => byDim(id)?.name || id).join(" + ")}`);
       tags.push(`Column: ${byDim(S.colId)?.name || S.colId}`);
       tags.push("Table layout: P&L rows / filter variables columns");
       tags.push(`Metrics: ${S.metricIds.length}`);
@@ -500,21 +520,195 @@
       if (parts.length) return parts.join(" / ");
       return row.dimensions?.rowKey || "Unknown";
     }
+    function maxTreeDepth(node) {
+      if (!node.children.length) return node.depth;
+      return Math.max(node.depth, ...node.children.map((child) => maxTreeDepth(child)));
+    }
 
-    function transposedColumns(r) {
+    function safeLabel(v) {
+      const t = String(v ?? "").trim();
+      return t ? t : "Unknown";
+    }
+
+    function nodeKey(path, depth) {
+      const joined = path.map((p) => String(p).replace(/\|/g, " ")).join("|");
+      return `col_${depth}_${joined}`;
+    }
+
+    function buildColumnTree(r) {
       const rowDimensions = r.config.rowDimensions || [];
       const regularRows = (r.rows || []).filter((row) => !row.isTotal);
-      const cols = regularRows.map((row, idx) => ({
-        id: `v_${idx + 1}`,
-        title: rowVariableLabel(row, rowDimensions),
-        row
-      }));
-      const totalRow = (r.rows || []).find((row) => row.isTotal);
-      if (totalRow) cols.push({ id: "v_total", title: "Total", row: totalRow, isTotal: true });
-      return cols;
+      const dimsForPath = rowDimensions.length ? rowDimensions : [{ id: "rowKey", name: "Row Key" }];
+      const root = { id: "root", label: "root", depth: -1, path: [], children: [], map: new Map(), leafRows: [] };
+
+      regularRows.forEach((row, idx) => {
+        const path = dimsForPath.map((d) => {
+          if (d.id === "rowKey") return safeLabel(row.dimensions?.rowKey || `Variable ${idx + 1}`);
+          return safeLabel(row.dimensions?.[d.id]);
+        });
+
+        let cursor = root;
+        path.forEach((label, depth) => {
+          let next = cursor.map.get(label);
+          if (!next) {
+            const nextPath = [...cursor.path, label];
+            next = {
+              id: nodeKey(nextPath, depth),
+              label,
+              depth,
+              path: nextPath,
+              children: [],
+              map: new Map(),
+              leafRows: []
+            };
+            cursor.map.set(label, next);
+            cursor.children.push(next);
+          }
+          cursor = next;
+        });
+
+        cursor.leafRows.push({
+          id: `v_${idx + 1}`,
+          label: path[path.length - 1] || `Variable ${idx + 1}`,
+          title: rowVariableLabel(row, rowDimensions),
+          path,
+          row
+        });
+      });
+
+      const totalRow = (r.rows || []).find((row) => row.isTotal) || null;
+      const maxDepth = root.children.length ? Math.max(0, ...root.children.map((child) => maxTreeDepth(child))) : 0;
+      return { root, maxDepth, totalRow };
+    }
+
+    function gatherLeaves(node) {
+      let out = [...node.leafRows];
+      node.children.forEach((child) => { out = out.concat(gatherLeaves(child)); });
+      return out;
+    }
+
+    function visibleSpan(node) {
+      const hasChildren = node.children.length > 0;
+      if (hasChildren && S.collapsedColumnNodes.has(node.id)) return 1;
+      if (!hasChildren) return Math.max(1, node.leafRows.length);
+      return node.children.reduce((sum, child) => sum + visibleSpan(child), 0);
+    }
+
+    function flattenVisibleColumns(node, out) {
+      const hasChildren = node.children.length > 0;
+      const collapsed = hasChildren && S.collapsedColumnNodes.has(node.id);
+      if (collapsed) {
+        out.push({
+          id: `group_${node.id}`,
+          type: "group",
+          title: node.path.join(" / "),
+          label: node.label,
+          nodeId: node.id,
+          leaves: gatherLeaves(node),
+          isTotal: false
+        });
+        return;
+      }
+      if (!hasChildren) {
+        const leafRows = node.leafRows.length ? node.leafRows : [{
+          id: `empty_${node.id}`,
+          label: node.label,
+          title: node.path.join(" / "),
+          row: null
+        }];
+        leafRows.forEach((leaf) => {
+          out.push({
+            id: leaf.id,
+            type: "leaf",
+            title: leaf.title,
+            label: leaf.label,
+            nodeId: node.id,
+            leaves: [leaf],
+            row: leaf.row,
+            isTotal: false
+          });
+        });
+        return;
+      }
+      node.children.forEach((child) => flattenVisibleColumns(child, out));
+    }
+
+    function buildHeaderRows(root, maxDepth) {
+      const rows = Array.from({ length: maxDepth + 1 }, () => []);
+      function visit(node) {
+        const hasChildren = node.children.length > 0;
+        const collapsed = hasChildren && S.collapsedColumnNodes.has(node.id);
+        if (collapsed) {
+          rows[node.depth].push({
+            label: node.label,
+            nodeId: node.id,
+            colSpan: 1,
+            rowSpan: maxDepth - node.depth + 1,
+            toggle: true,
+            collapsed: true
+          });
+          return;
+        }
+        if (!hasChildren) {
+          const count = Math.max(1, node.leafRows.length);
+          for (let i = 0; i < count; i += 1) {
+            const leaf = node.leafRows[i];
+            rows[node.depth].push({
+              label: leaf?.label || node.label,
+              nodeId: node.id,
+              colSpan: 1,
+              rowSpan: maxDepth - node.depth + 1,
+              toggle: false,
+              collapsed: false
+            });
+          }
+          return;
+        }
+        rows[node.depth].push({
+          label: node.label,
+          nodeId: node.id,
+          colSpan: visibleSpan(node),
+          rowSpan: 1,
+          toggle: true,
+          collapsed: false
+        });
+        node.children.forEach((child) => visit(child));
+      }
+      root.children.forEach((child) => visit(child));
+      return rows;
+    }
+
+    function buildTableModel(r) {
+      const tree = buildColumnTree(r);
+      const headerRows = buildHeaderRows(tree.root, tree.maxDepth);
+      const columns = [];
+      tree.root.children.forEach((child) => flattenVisibleColumns(child, columns));
+      if (tree.totalRow) {
+        columns.push({
+          id: "v_total",
+          type: "leaf",
+          title: "Total",
+          label: "Total",
+          nodeId: "total",
+          row: tree.totalRow,
+          leaves: [],
+          isTotal: true
+        });
+        headerRows[0].push({
+          label: "Total",
+          nodeId: "total",
+          colSpan: 1,
+          rowSpan: headerRows.length,
+          toggle: false,
+          collapsed: false,
+          isTotal: true
+        });
+      }
+      return { headerRows, columns };
     }
 
     function metricCell(row, report, metricId) {
+      if (!row) return null;
       const totalKey = `total_${metricId}`;
       if (row.cells?.[totalKey]) return row.cells[totalKey];
       const firstPeriod = (report.columns || []).find((c) => !c.isTotal) || (report.columns || [])[0];
@@ -522,11 +716,47 @@
       return row.cells?.[`${firstPeriod.key}_${metricId}`] || null;
     }
 
+    function formatMetricValue(value, metric) {
+      const n = Number(value || 0);
+      if (!Number.isFinite(n)) return "-";
+      const decimals = metric?.format === "integer"
+        ? 0
+        : (typeof metric?.decimals === "number" ? metric.decimals : 0);
+      return n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function metricCellForColumn(col, report, metric) {
+      if (col.type === "leaf") return metricCell(col.row, report, metric.id);
+      let sum = 0;
+      let hasValue = false;
+      (col.leaves || []).forEach((leaf) => {
+        const cell = metricCell(leaf.row, report, metric.id);
+        if (!cell) return;
+        sum += Number(cell.value || 0);
+        hasValue = true;
+      });
+      if (!hasValue) return null;
+      return { value: sum, formattedValue: formatMetricValue(sum, metric), isTotal: false };
+    }
+
     function tableHtml(r) {
       if (!r?.rows?.length) { E.thead.innerHTML = ""; E.tbody.innerHTML = ""; return; }
-      const cols = transposedColumns(r);
+      const model = buildTableModel(r);
+      const cols = model.columns;
       const sections = metricSections(r.config.metrics || []);
-      E.thead.innerHTML = `<tr><th>P&L Parameter</th>${cols.map((c) => `<th>${esc(c.title)}</th>`).join("")}</tr>`;
+
+      const headRows = model.headerRows.map((cells, idx) => `
+        <tr>
+          ${idx === 0 ? `<th rowspan="${model.headerRows.length}">P&L Parameter</th>` : ""}
+          ${cells.map((cell) => `
+            <th class="col-head" colspan="${cell.colSpan}" rowspan="${cell.rowSpan}">
+              ${cell.toggle ? `<button class="col-btn" type="button" data-a="togcol" data-node="${esc(cell.nodeId)}">${cell.collapsed ? "+" : "-"}</button>` : ""}
+              ${esc(cell.label)}
+            </th>
+          `).join("")}
+        </tr>
+      `).join("");
+      E.thead.innerHTML = headRows;
 
       const bodyParts = [];
       sections.forEach((section) => {
@@ -534,7 +764,7 @@
         bodyParts.push(`
           <tr class="section-row">
             <td colspan="${cols.length + 1}">
-              <button class="sec-btn" type="button" data-a="togsec" data-sec="${esc(section.id)}">${collapsed ? "▸" : "▾"}</button>
+              <button class="sec-btn" type="button" data-a="togsec" data-sec="${esc(section.id)}">${collapsed ? "+" : "-"}</button>
               ${esc(section.title)}
             </td>
           </tr>
@@ -543,7 +773,7 @@
         if (collapsed) return;
         section.metrics.forEach((metric) => {
           const metricCells = cols.map((col) => {
-            const cell = metricCell(col.row, r, metric.id);
+            const cell = metricCellForColumn(col, r, metric);
             if (!cell) return `<td class="metricv">-</td>`;
             const n = Number(cell.value || 0);
             const tone = n < 0 ? "neg" : n > 0 ? "pos" : "";
@@ -554,7 +784,8 @@
       });
 
       E.tbody.innerHTML = bodyParts.join("");
-      E.rowCount.textContent = `P&L parameters: ${(r.config.metrics || []).length} | Variables: ${cols.length}`;
+      const sourceLeafCount = cols.reduce((sum, col) => sum + (col.type === "group" ? (col.leaves || []).length : (col.isTotal ? 0 : 1)), 0);
+      E.rowCount.textContent = `P&L parameters: ${(r.config.metrics || []).length} | Visible columns: ${cols.length} | Source variables: ${sourceLeafCount}`;
       E.generated.textContent = `Generated: ${ts(r.metadata?.generatedAt)}`;
     }
 
@@ -596,18 +827,18 @@
       const t = String(v);
       return t.includes(",") || t.includes('"') || t.includes("\n") ? `"${t.replace(/"/g, '""')}"` : t;
     }
-
     function exportCsv() {
       const r = S.report;
       if (!r?.rows?.length) { setStatus("No report data available for export.", true); return; }
-      const cols = transposedColumns(r);
+      const model = buildTableModel(r);
+      const cols = model.columns;
       const sections = metricSections(r.config.metrics || []);
       const head = ["P&L Parameter", ...cols.map((c) => c.title)];
       const rows = [];
       sections.forEach((section) => {
         rows.push([`[${section.title}]`, ...cols.map(() => "")]);
         section.metrics.forEach((metric) => {
-          const values = cols.map((col) => metricCell(col.row, r, metric.id)?.value ?? "");
+          const values = cols.map((col) => metricCellForColumn(col, r, metric)?.value ?? "");
           rows.push([metric.name, ...values]);
         });
       });
@@ -636,12 +867,13 @@
         if (a === "trow") {
           const id = t.dataset.id; if (!id) return;
           if (t.checked && !S.rowIds.includes(id)) {
-            if (S.rowIds.length >= MAX_ROW) { t.checked = false; setStatus(`Row dimensions are limited to ${MAX_ROW}.`, true); return; }
+            if (S.rowIds.length >= MAX_ROW) { t.checked = false; setStatus(`Column variables are limited to ${MAX_ROW}.`, true); return; }
             S.rowIds.push(id);
           } else if (!t.checked && S.rowIds.includes(id)) {
             S.rowIds = S.rowIds.filter((x) => x !== id);
-            if (!S.rowIds.length) { S.rowIds = ["category_l1"]; setStatus("At least one row dimension is required.", true); }
+            if (!S.rowIds.length) { S.rowIds = ["category_l1"]; setStatus("At least one column variable is required.", true); }
           }
+          S.collapsedColumnNodes.clear();
           render(); return;
         }
         if (a === "col") { const id = t.dataset.id; if (!id) return; S.colId = id; render(); return; }
@@ -688,6 +920,17 @@
         else S.collapsedSections.add(sec);
         tableHtml(S.report);
       });
+
+      E.thead.addEventListener("click", (ev) => {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+        if ((target.dataset.a || "") !== "togcol") return;
+        const node = target.dataset.node;
+        if (!node || node === "total") return;
+        if (S.collapsedColumnNodes.has(node)) S.collapsedColumnNodes.delete(node);
+        else S.collapsedColumnNodes.add(node);
+        tableHtml(S.report);
+      });
     }
 
     async function boot() {
@@ -707,3 +950,4 @@
   </script>
 </body>
 </html>
+
