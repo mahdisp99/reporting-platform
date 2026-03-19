@@ -110,11 +110,32 @@
       background: #f5f9fd; border-bottom: 1px solid var(--line); border-right: 1px solid #edf2f8;
       padding: 8px; white-space: nowrap; text-align: left;
     }
-    thead tr:nth-child(2) th { top: 34px; background: #fcfdff; }
     tbody td { border-bottom: 1px solid #eef3f8; border-right: 1px solid #f6f8fc; padding: 8px; white-space: nowrap; }
     tbody tr:nth-child(even) td { background: #fcfdff; }
     tbody tr.total td { background: #f1f8f8; font-weight: 800; border-top: 1px solid #cce4e0; }
     td.metricv { text-align: right; font-variant-numeric: tabular-nums; }
+    td.metric-name { font-weight: 700; color: #334155; background: #fbfdff; }
+    tr.section-row td {
+      background: #edf4ff;
+      color: #1e3a5f;
+      font-weight: 800;
+      border-top: 1px solid #cdddf4;
+      border-bottom: 1px solid #dbe7f8;
+      padding: 9px 10px;
+    }
+    .sec-btn {
+      border: 1px solid #b9cde9;
+      background: #fff;
+      color: #1e3a5f;
+      border-radius: 7px;
+      width: 24px;
+      height: 22px;
+      margin-right: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 800;
+    }
 
     @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -268,6 +289,17 @@
       { id: "ebitda", name: "EBITDA", field: "ebitda", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Profitability", type: "calculated", dependencies: ["pc3", "ga_costs", "hr_costs"] }
     ];
 
+    const METRIC_GROUPS = [
+      { id: "volume", title: "Volume Metrics", metricIds: ["orders", "items", "avg_order_value"] },
+      { id: "gmv", title: "GMV & NMV", metricIds: ["gmv", "refund_amount", "delivery_cost", "vendor_discount", "nmv"] },
+      { id: "revenue", title: "Main Revenue", metricIds: ["commission", "ads", "main_revenue"] },
+      { id: "cor", title: "Cost of Revenue", metricIds: ["cost_of_revenue", "vouchers_crc", "general_cost_crc", "marketing_crc", "vat", "pc1"] },
+      { id: "fees", title: "Fees", metricIds: ["signup_fee", "penalty", "service_fee", "total_fee"] },
+      { id: "pc2", title: "Customer Support & PC2", metricIds: ["customer_support_costs", "pc2"] },
+      { id: "pc3", title: "Brand & Marketing NC", metricIds: ["brand_costs", "vouchers_nc", "general_cost_nc", "marketing_nc", "pc3"] },
+      { id: "ebitda", title: "EBITDA", metricIds: ["ga_costs", "hr_costs", "ebitda"] }
+    ];
+
     const OPS = [
       { id: "equals", name: "equals" },
       { id: "notEquals", name: "not equals" },
@@ -287,6 +319,7 @@
       filters: [{ uid: "default_year", dimensionId: "year", operator: "equals", valueA: "1404", valueB: "" }],
       showTotals: true,
       comparison: false,
+      collapsedSections: new Set(),
       report: null
     };
 
@@ -428,6 +461,7 @@
       const tags = [];
       tags.push(`Row: ${S.rowIds.map((id) => byDim(id)?.name || id).join(" + ")}`);
       tags.push(`Column: ${byDim(S.colId)?.name || S.colId}`);
+      tags.push("Table layout: P&L rows / filter variables columns");
       tags.push(`Metrics: ${S.metricIds.length}`);
       S.filters.forEach((f) => tags.push(`${byDim(f.dimensionId)?.name || f.dimensionId} ${f.operator} ${f.operator === "between" ? `${f.valueA}..${f.valueB}` : f.valueA}`));
       E.tags.innerHTML = tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("");
@@ -443,23 +477,83 @@
       }).join("");
     }
 
+    function metricSections(reportMetrics) {
+      const byIdMap = new Map((reportMetrics || []).map((m) => [m.id, m]));
+      const used = new Set();
+      const sections = [];
+      METRIC_GROUPS.forEach((group) => {
+        const ms = group.metricIds.map((id) => byIdMap.get(id)).filter(Boolean);
+        if (!ms.length) return;
+        ms.forEach((m) => used.add(m.id));
+        sections.push({ id: group.id, title: group.title, metrics: ms });
+      });
+      const rest = (reportMetrics || []).filter((m) => !used.has(m.id));
+      if (rest.length) sections.push({ id: "other", title: "Other Metrics", metrics: rest });
+      return sections;
+    }
+
+    function rowVariableLabel(row, rowDimensions) {
+      const parts = (rowDimensions || [])
+        .map((d) => row.dimensions?.[d.id])
+        .filter((v) => v !== null && v !== undefined && String(v).trim() !== "");
+      if (parts.length) return parts.join(" / ");
+      return row.dimensions?.rowKey || "Unknown";
+    }
+
+    function transposedColumns(r) {
+      const rowDimensions = r.config.rowDimensions || [];
+      const regularRows = (r.rows || []).filter((row) => !row.isTotal);
+      const cols = regularRows.map((row, idx) => ({
+        id: `v_${idx + 1}`,
+        title: rowVariableLabel(row, rowDimensions),
+        row
+      }));
+      const totalRow = (r.rows || []).find((row) => row.isTotal);
+      if (totalRow) cols.push({ id: "v_total", title: "Total", row: totalRow, isTotal: true });
+      return cols;
+    }
+
+    function metricCell(row, report, metricId) {
+      const totalKey = `total_${metricId}`;
+      if (row.cells?.[totalKey]) return row.cells[totalKey];
+      const firstPeriod = (report.columns || []).find((c) => !c.isTotal) || (report.columns || [])[0];
+      if (!firstPeriod) return null;
+      return row.cells?.[`${firstPeriod.key}_${metricId}`] || null;
+    }
+
     function tableHtml(r) {
-      if (!r?.columns || !r?.rows) { E.thead.innerHTML = ""; E.tbody.innerHTML = ""; return; }
-      const rd = r.config.rowDimensions || [], ms = r.config.metrics || [], cs = r.columns || [];
-      E.thead.innerHTML = `<tr>${rd.map((d) => `<th>${esc(d.name)}</th>`).join("")}${cs.map((c) => `<th colspan="${ms.length}">${esc(c.title)}</th>`).join("")}</tr><tr>${rd.map((d) => `<th>${esc(d.name)}</th>`).join("")}${cs.map(() => ms.map((m) => `<th>${esc(m.name)}</th>`).join("")).join("")}</tr>`;
-      E.tbody.innerHTML = r.rows.map((row) => `
-        <tr class="${row.isTotal ? "total" : ""}">
-          ${rd.map((d) => `<td>${esc(row.dimensions?.[d.id] ?? "")}</td>`).join("")}
-          ${cs.map((c) => ms.map((m) => {
-            const cell = row.cells?.[`${c.key}_${m.id}`];
+      if (!r?.rows?.length) { E.thead.innerHTML = ""; E.tbody.innerHTML = ""; return; }
+      const cols = transposedColumns(r);
+      const sections = metricSections(r.config.metrics || []);
+      E.thead.innerHTML = `<tr><th>P&L Parameter</th>${cols.map((c) => `<th>${esc(c.title)}</th>`).join("")}</tr>`;
+
+      const bodyParts = [];
+      sections.forEach((section) => {
+        const collapsed = S.collapsedSections.has(section.id);
+        bodyParts.push(`
+          <tr class="section-row">
+            <td colspan="${cols.length + 1}">
+              <button class="sec-btn" type="button" data-a="togsec" data-sec="${esc(section.id)}">${collapsed ? "▸" : "▾"}</button>
+              ${esc(section.title)}
+            </td>
+          </tr>
+        `);
+
+        if (collapsed) return;
+        section.metrics.forEach((metric) => {
+          const metricCells = cols.map((col) => {
+            const cell = metricCell(col.row, r, metric.id);
             if (!cell) return `<td class="metricv">-</td>`;
             const n = Number(cell.value || 0);
             const tone = n < 0 ? "neg" : n > 0 ? "pos" : "";
             return `<td class="metricv ${tone}">${esc(cell.formattedValue || "-")}</td>`;
-          }).join("")).join("")}
-        </tr>
-      `).join("");
-      E.rowCount.textContent = `Rows: ${r.metadata?.totalRows || r.rows.length || 0}`;
+          }).join("");
+          bodyParts.push(`<tr><td class="metric-name">${esc(metric.name)}</td>${metricCells}</tr>`);
+        });
+      });
+
+      E.tbody.innerHTML = bodyParts.join("");
+      E.rowCount.textContent = `P&L parameters: ${(r.config.metrics || []).length} | Variables: ${cols.length}`;
       E.generated.textContent = `Generated: ${ts(r.metadata?.generatedAt)}`;
     }
 
@@ -505,13 +599,21 @@
     function exportCsv() {
       const r = S.report;
       if (!r?.rows?.length) { setStatus("No report data available for export.", true); return; }
-      const rd = r.config.rowDimensions || [], ms = r.config.metrics || [], cs = r.columns || [];
-      const head = [...rd.map((d) => d.name), ...cs.flatMap((c) => ms.map((m) => `${c.title} ${m.name}`))];
-      const rows = r.rows.map((row) => [
-        ...rd.map((d) => csvCell(row.dimensions?.[d.id] ?? "")),
-        ...cs.flatMap((c) => ms.map((m) => csvCell(row.cells?.[`${c.key}_${m.id}`]?.value ?? "")))
-      ]);
-      const text = [head.map(csvCell).join(","), ...rows.map((x) => x.join(","))].join("\n");
+      const cols = transposedColumns(r);
+      const sections = metricSections(r.config.metrics || []);
+      const head = ["P&L Parameter", ...cols.map((c) => c.title)];
+      const rows = [];
+      sections.forEach((section) => {
+        rows.push([`[${section.title}]`, ...cols.map(() => "")]);
+        section.metrics.forEach((metric) => {
+          const values = cols.map((col) => metricCell(col.row, r, metric.id)?.value ?? "");
+          rows.push([metric.name, ...values]);
+        });
+      });
+      const text = [
+        head.map(csvCell).join(","),
+        ...rows.map((row) => row.map(csvCell).join(","))
+      ].join("\n");
       const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -573,6 +675,17 @@
           S.filters.splice(i, 1);
           render();
         }
+      });
+
+      E.tbody.addEventListener("click", (ev) => {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+        if ((target.dataset.a || "") !== "togsec") return;
+        const sec = target.dataset.sec;
+        if (!sec) return;
+        if (S.collapsedSections.has(sec)) S.collapsedSections.delete(sec);
+        else S.collapsedSections.add(sec);
+        tableHtml(S.report);
       });
     }
 
