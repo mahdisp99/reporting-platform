@@ -154,6 +154,7 @@ def get_client():
     password = get_env("BASALAM_CH_PASSWORD", os.getenv("CH_PASSWORD", ""))
     database = get_database_name()
     secure = os.getenv("BASALAM_CH_SECURE", "false").lower() in {"1", "true", "yes"}
+    timeout = int(os.getenv("BASALAM_CH_TIMEOUT", "20"))
 
     if clickhouse_connect is not None:
         return clickhouse_connect.get_client(
@@ -163,8 +164,8 @@ def get_client():
             password=password,
             database=database,
             secure=secure,
-            connect_timeout=20,
-            send_receive_timeout=120,
+            connect_timeout=timeout,
+            send_receive_timeout=max(timeout, 20),
         )
 
     return SimpleClickHouseHttpClient(
@@ -174,7 +175,7 @@ def get_client():
         password=password,
         database=database,
         secure=secure,
-        timeout=120,
+        timeout=timeout,
     )
 
 
@@ -451,7 +452,10 @@ def get_filter_options():
             ORDER BY {order}
             LIMIT 150
         """
-        result = client.query(query)
+        try:
+            result = client.query(query)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"ClickHouse query failed: {exc}") from exc
         values = []
         for row in result.result_rows:
             value = row[0]
@@ -523,7 +527,10 @@ def get_pnl_report(config: PnLConfigInput):
         ORDER BY col_sort, {", ".join(row_group_parts)}
     """
 
-    result = client.query(query)
+    try:
+        result = client.query(query)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"ClickHouse query failed: {exc}") from exc
     column_names = result.column_names
     records = [dict(zip(column_names, row)) for row in result.result_rows]
 
