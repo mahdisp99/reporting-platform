@@ -195,7 +195,7 @@
           </div>
           <div class="box">
             <h3>Metrics</h3>
-            <p class="hint">Select at least 1 and at most 10.</p>
+            <p class="hint">Select at least 1 metric. You can select all available metrics.</p>
             <div id="metrics" class="metric-grid"></div>
           </div>
           <div class="box">
@@ -238,7 +238,7 @@
   <script>
     const API = "/api/pnl";
     const MAX_ROW = 4;
-    const MAX_METRIC = 10;
+    
 
     const DIMENSIONS = [
       { id: "category_l1", name: "Category L1", field: "cat_lvl1_title", table: "model_sales", group: "Product", level: 0 },
@@ -299,6 +299,7 @@
       { id: "pc3", title: "Brand & Marketing NC", metricIds: ["brand_costs", "vouchers_nc", "general_cost_nc", "marketing_nc", "pc3"] },
       { id: "ebitda", title: "EBITDA", metricIds: ["ga_costs", "hr_costs", "ebitda"] }
     ];
+    const MAX_METRIC = METRICS.length;
 
     const OPS = [
       { id: "equals", name: "equals" },
