@@ -220,21 +220,54 @@ BASE_METRIC_SQL: dict[str, str] = {
     "orders": "countDistinct(ms.order_id)",
     "items": "count(ms.item_id)",
     "gmv": "sum(toFloat64(coalesce(ms.gmv, 0)))",
-    "refund_amount": "sum(toFloat64(coalesce(ms.refund_amount, 0)))",
-    "delivery_cost": "sum(toFloat64(coalesce(ms.delivery_cost, 0)))",
-    "vendor_discount": "sum(toFloat64(coalesce(ms.vendor_discount, 0)))",
-    "commission": "sum(toFloat64(coalesce(ms.commission, 0)))",
+    "refund_amount": "-sum(toFloat64(coalesce(ms.refund_amount, 0)))",
+    "delivery_cost": "-sum(toFloat64(coalesce(ms.delivery_cost, 0)))",
+    "vendor_discount": "-sum(toFloat64(coalesce(ms.vendor_discount, 0)))",
+    "commission": "sum(toFloat64(coalesce(ms.commission, 0) + coalesce(ms.satisfaction_commission, 0)))",
     "satisfaction_commission": "sum(toFloat64(coalesce(ms.satisfaction_commission, 0)))",
+    "ads": "sum(toFloat64(coalesce(ms.ads_rev, 0)))",
+    "cost_of_revenue": "-sum(toFloat64(coalesce(ms.cost_of_revenue_cost, 0)))",
+    "vouchers_crc": "-sumIf(toFloat64(coalesce(ms.basalam_discount, 0)), ms.customer_type_id = 2)",
+    "general_cost_crc": "-sumIf(toFloat64(coalesce(ms.marketing_cost, 0)), ms.customer_type_id = 2)",
+    "vat": "-sum(toFloat64(coalesce(ms.vat_cost, 0)))",
+    "signup_fee": "sum(toFloat64(coalesce(ms.vendor_signup_rev, 0)))",
     "service_fee": "sum(toFloat64(coalesce(ms.service_fee, 0)))",
     "penalty": "sum(toFloat64(coalesce(ms.penalty, 0)))",
+    "customer_support_costs": "-sum(toFloat64(coalesce(ms.customer_support_cost, 0) + coalesce(ms.support_cost, 0)))",
+    "brand_costs": "-sum(toFloat64(coalesce(ms.brand_cost, 0)))",
+    "vouchers_nc": "-sumIf(toFloat64(coalesce(ms.basalam_discount, 0)), ms.customer_type_id = 1)",
+    "general_cost_nc": "-sumIf(toFloat64(coalesce(ms.marketing_cost, 0)), ms.customer_type_id = 1)",
+    "ga_costs": "-sum(toFloat64(coalesce(ms.g_and_a_cost, 0)))",
+    "hr_costs": "-sum(toFloat64(coalesce(ms.hr_cost, 0)))",
 }
 
 
 CALCULATED_DEPENDENCIES: dict[str, list[str]] = {
     "nmv": ["gmv", "refund_amount", "delivery_cost", "vendor_discount"],
-    "main_revenue": ["commission", "satisfaction_commission"],
-    "total_fee": ["service_fee", "penalty"],
+    "main_revenue": ["commission", "ads"],
+    "marketing_crc": ["vouchers_crc", "general_cost_crc"],
+    "total_fee": ["signup_fee", "service_fee", "penalty"],
+    "pc1": ["main_revenue", "cost_of_revenue", "marketing_crc", "vat"],
+    "pc2": ["pc1", "total_fee", "customer_support_costs"],
+    "marketing_nc": ["vouchers_nc", "general_cost_nc"],
+    "pc3": ["pc2", "brand_costs", "marketing_nc"],
+    "ebitda": ["pc3", "ga_costs", "hr_costs"],
     "avg_order_value": ["gmv", "orders"],
+}
+
+DAILY_ALLOCATED_BASE_METRICS = {
+    "ads",
+    "cost_of_revenue",
+    "vouchers_crc",
+    "general_cost_crc",
+    "vat",
+    "signup_fee",
+    "customer_support_costs",
+    "brand_costs",
+    "vouchers_nc",
+    "general_cost_nc",
+    "ga_costs",
+    "hr_costs",
 }
 
 NUMERIC_DIMENSIONS = {
@@ -361,28 +394,88 @@ def build_filter_condition(filter_obj: FilterInput) -> str:
     return ""
 
 
-def evaluate_metric(metric_id: str, raw_values: dict[str, float]) -> float:
+def evaluate_metric(metric_id: str, raw_values: dict[str, float], cache: dict[str, float] | None = None) -> float:
+    if cache is None:
+        cache = {}
+    if metric_id in cache:
+        return cache[metric_id]
+
     if metric_id in BASE_METRIC_SQL:
-        return to_number(raw_values.get(metric_id, 0.0))
+        value = to_number(raw_values.get(metric_id, 0.0))
+        cache[metric_id] = value
+        return value
+
+    value = 0.0
     if metric_id == "nmv":
-        return (
-            to_number(raw_values.get("gmv"))
-            - to_number(raw_values.get("refund_amount"))
-            - to_number(raw_values.get("delivery_cost"))
-            - to_number(raw_values.get("vendor_discount"))
+        value = (
+            evaluate_metric("gmv", raw_values, cache)
+            + evaluate_metric("refund_amount", raw_values, cache)
+            + evaluate_metric("delivery_cost", raw_values, cache)
+            + evaluate_metric("vendor_discount", raw_values, cache)
         )
-    if metric_id == "main_revenue":
-        return to_number(raw_values.get("commission")) + to_number(
-            raw_values.get("satisfaction_commission")
+    elif metric_id == "main_revenue":
+        value = evaluate_metric("commission", raw_values, cache) + evaluate_metric("ads", raw_values, cache)
+    elif metric_id == "marketing_crc":
+        value = evaluate_metric("vouchers_crc", raw_values, cache) + evaluate_metric("general_cost_crc", raw_values, cache)
+    elif metric_id == "total_fee":
+        value = (
+            evaluate_metric("signup_fee", raw_values, cache)
+            + evaluate_metric("service_fee", raw_values, cache)
+            + evaluate_metric("penalty", raw_values, cache)
         )
-    if metric_id == "total_fee":
-        return to_number(raw_values.get("service_fee")) + to_number(raw_values.get("penalty"))
-    if metric_id == "avg_order_value":
-        orders = to_number(raw_values.get("orders"))
+    elif metric_id == "pc1":
+        value = (
+            evaluate_metric("main_revenue", raw_values, cache)
+            + evaluate_metric("cost_of_revenue", raw_values, cache)
+            + evaluate_metric("marketing_crc", raw_values, cache)
+            + evaluate_metric("vat", raw_values, cache)
+        )
+    elif metric_id == "pc2":
+        value = (
+            evaluate_metric("pc1", raw_values, cache)
+            + evaluate_metric("total_fee", raw_values, cache)
+            + evaluate_metric("customer_support_costs", raw_values, cache)
+        )
+    elif metric_id == "marketing_nc":
+        value = evaluate_metric("vouchers_nc", raw_values, cache) + evaluate_metric("general_cost_nc", raw_values, cache)
+    elif metric_id == "pc3":
+        value = (
+            evaluate_metric("pc2", raw_values, cache)
+            + evaluate_metric("brand_costs", raw_values, cache)
+            + evaluate_metric("marketing_nc", raw_values, cache)
+        )
+    elif metric_id == "ebitda":
+        value = (
+            evaluate_metric("pc3", raw_values, cache)
+            + evaluate_metric("ga_costs", raw_values, cache)
+            + evaluate_metric("hr_costs", raw_values, cache)
+        )
+    elif metric_id == "avg_order_value":
+        orders = evaluate_metric("orders", raw_values, cache)
         if orders <= 0:
-            return 0.0
-        return to_number(raw_values.get("gmv")) / orders
-    return 0.0
+            value = 0.0
+        else:
+            value = evaluate_metric("gmv", raw_values, cache) / orders
+
+    cache[metric_id] = value
+    return value
+
+
+def resolve_base_dependencies(metric_id: str, seen: set[str] | None = None) -> set[str]:
+    if metric_id in BASE_METRIC_SQL:
+        return {metric_id}
+    if metric_id not in CALCULATED_DEPENDENCIES:
+        return set()
+
+    current_seen = set(seen or set())
+    if metric_id in current_seen:
+        return set()
+    current_seen.add(metric_id)
+
+    dependencies: set[str] = set()
+    for dep in CALCULATED_DEPENDENCIES[metric_id]:
+        dependencies.update(resolve_base_dependencies(dep, current_seen))
+    return dependencies
 
 
 def format_value(value: float, metric: MetricInput) -> str:
@@ -503,26 +596,124 @@ def get_pnl_report(config: PnLConfigInput):
         if metric_id in BASE_METRIC_SQL:
             required_base_metrics.add(metric_id)
         elif metric_id in CALCULATED_DEPENDENCIES:
-            required_base_metrics.update(CALCULATED_DEPENDENCIES[metric_id])
+            required_base_metrics.update(resolve_base_dependencies(metric_id))
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported metric id: {metric_id}")
 
     metric_select_parts = [f"{BASE_METRIC_SQL[m]} AS m_{m}" for m in sorted(required_base_metrics)]
+    requires_daily_cost = bool(required_base_metrics.intersection(DAILY_ALLOCATED_BASE_METRICS))
 
-    where_parts = ["ms.purchase_at IS NOT NULL"]
+    where_parts: list[str] = []
+    has_year_scope_filter = False
     for filter_obj in config.filters:
         condition = build_filter_condition(filter_obj)
         if condition:
             where_parts.append(condition)
+            if filter_obj.dimension.id in {"year", "year_month"}:
+                has_year_scope_filter = True
+
+    if requires_daily_cost and not has_year_scope_filter:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Using cost-allocated P&L metrics requires a Year or Year-Month filter "
+                "to keep query size bounded."
+            ),
+        )
+
+    base_where_parts = ["ms.purchase_at IS NOT NULL", *where_parts]
+    base_where_sql = " AND ".join(base_where_parts)
+
+    if requires_daily_cost:
+        prepared_cte_sql = f"""
+        daily_cost AS (
+          SELECT
+            b.*,
+            count() OVER (PARTITION BY b.gdate) AS daily_item_count,
+            toFloat64(coalesce(cr.ads_rev, 0)) AS ads_rev_daily,
+            toFloat64(coalesce(cr.vendor_signup_rev, 0)) AS vendor_signup_rev_daily,
+            toFloat64(coalesce(cr.cost_of_revenue_cost, 0)) AS cost_of_revenue_cost_daily,
+            toFloat64(coalesce(cr.vat_cost, 0)) AS vat_cost_daily,
+            toFloat64(coalesce(cr.marketing_cost, 0)) AS marketing_cost_daily,
+            toFloat64(coalesce(cr.customer_support_cost, 0)) AS customer_support_cost_daily,
+            toFloat64(coalesce(cr.support_cost, 0)) AS support_cost_daily,
+            toFloat64(coalesce(cr.brand_cost, 0)) AS brand_cost_daily,
+            toFloat64(coalesce(cr.g_and_a_cost, 0)) AS g_and_a_cost_daily,
+            toFloat64(coalesce(cr.hr_cost, 0)) AS hr_cost_daily
+          FROM base b
+          LEFT JOIN {database}.daily_cost_revenue cr
+            ON b.gdate = cr.gregorian_date
+        ),
+        prepared AS (
+          SELECT
+            dc.*,
+            dc.ads_rev_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS ads_rev,
+            dc.vendor_signup_rev_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS vendor_signup_rev,
+            dc.cost_of_revenue_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS cost_of_revenue_cost,
+            dc.vat_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS vat_cost,
+            dc.marketing_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS marketing_cost,
+            dc.customer_support_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS customer_support_cost,
+            dc.support_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS support_cost,
+            dc.brand_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS brand_cost,
+            dc.g_and_a_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS g_and_a_cost,
+            dc.hr_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS hr_cost
+          FROM daily_cost dc
+        )
+        """
+    else:
+        prepared_cte_sql = """
+        prepared AS (
+          SELECT
+            b.*,
+            toFloat64(0) AS ads_rev,
+            toFloat64(0) AS vendor_signup_rev,
+            toFloat64(0) AS cost_of_revenue_cost,
+            toFloat64(0) AS vat_cost,
+            toFloat64(0) AS marketing_cost,
+            toFloat64(0) AS customer_support_cost,
+            toFloat64(0) AS support_cost,
+            toFloat64(0) AS brand_cost,
+            toFloat64(0) AS g_and_a_cost,
+            toFloat64(0) AS hr_cost
+          FROM base b
+        )
+        """
 
     query = f"""
+        WITH base AS (
+          SELECT
+            ms.purchase_date AS gdate,
+            ms.item_id,
+            ms.order_id,
+            toInt32(coalesce(ms.customer_type_id, 0)) AS customer_type_id,
+            toInt32(coalesce(ms.vendor_type_id, 0)) AS vendor_type_id,
+            ms.customer_province_title,
+            ms.vendor_province_title,
+            ms.cat_lvl1_title,
+            ms.cat_lvl2_title,
+            ms.cat_lvl3_title,
+            toInt32(coalesce(ms.persian_year, 0)) AS persian_year,
+            toInt32(ms.persiandate_purchase_yearmonth) AS persiandate_purchase_yearmonth,
+            toFloat64(coalesce(ms.gmv, 0)) AS gmv,
+            toFloat64(coalesce(ms.refund_amount, 0)) AS refund_amount,
+            toFloat64(coalesce(ms.delivery_cost, 0)) AS delivery_cost,
+            toFloat64(coalesce(ms.vendor_discount, 0)) AS vendor_discount,
+            toFloat64(coalesce(ms.basalam_discount, 0)) AS basalam_discount,
+            toFloat64(coalesce(ms.commission, 0)) AS commission,
+            toFloat64(coalesce(ms.satisfaction_commission, 0)) AS satisfaction_commission,
+            toFloat64(coalesce(ms.service_fee, 0)) AS service_fee,
+            toFloat64(coalesce(ms.penalty, 0)) AS penalty
+          FROM {database}.model_sales ms
+          WHERE {base_where_sql}
+        ),
+        {prepared_cte_sql}
         SELECT
           {", ".join(row_select_parts)},
           {col_expr} AS col_value,
           {col_sort_expr} AS col_sort,
           {", ".join(metric_select_parts)}
-        FROM {database}.model_sales ms
-        WHERE {" AND ".join(where_parts)}
+        FROM prepared ms
+        WHERE 1 = 1
         GROUP BY {", ".join(row_group_parts + [col_expr, col_sort_expr])}
         ORDER BY col_sort, {", ".join(row_group_parts)}
     """
@@ -578,17 +769,19 @@ def get_pnl_report(config: PnLConfigInput):
             raw_values = col_data.get(column_title, {m: 0.0 for m in required_base_metrics})
             for base_metric in required_base_metrics:
                 row_total_base[base_metric] += to_number(raw_values.get(base_metric, 0.0))
+            metric_cache: dict[str, float] = {}
             for metric_id in metric_ids:
                 metric = metric_map[metric_id]
-                metric_value = evaluate_metric(metric_id, raw_values)
+                metric_value = evaluate_metric(metric_id, raw_values, metric_cache)
                 cells[f"{col_key}_{metric_id}"] = make_cell(metric_value, metric, False)
 
         for base_metric in required_base_metrics:
             grand_totals[base_metric] += row_total_base[base_metric]
 
+        row_total_cache: dict[str, float] = {}
         for metric_id in metric_ids:
             metric = metric_map[metric_id]
-            total_value = evaluate_metric(metric_id, row_total_base)
+            total_value = evaluate_metric(metric_id, row_total_base, row_total_cache)
             cells[f"total_{metric_id}"] = make_cell(total_value, metric, True)
 
         rows_output.append(
@@ -618,14 +811,16 @@ def get_pnl_report(config: PnLConfigInput):
                     continue
                 for base_metric in required_base_metrics:
                     base_for_column[base_metric] += to_number(raw_values.get(base_metric, 0.0))
+            column_total_cache: dict[str, float] = {}
             for metric_id in metric_ids:
                 metric = metric_map[metric_id]
-                metric_value = evaluate_metric(metric_id, base_for_column)
+                metric_value = evaluate_metric(metric_id, base_for_column, column_total_cache)
                 total_cells[f"{col_key}_{metric_id}"] = make_cell(metric_value, metric, True)
 
+        grand_total_cache: dict[str, float] = {}
         for metric_id in metric_ids:
             metric = metric_map[metric_id]
-            total_value = evaluate_metric(metric_id, grand_totals)
+            total_value = evaluate_metric(metric_id, grand_totals, grand_total_cache)
             total_cells[f"total_{metric_id}"] = make_cell(total_value, metric, True)
 
         rows_output.append(

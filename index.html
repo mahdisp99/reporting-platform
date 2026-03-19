@@ -179,7 +179,7 @@
           </div>
           <div class="box">
             <h3>Filters</h3>
-            <p class="hint">Operators: equals, not equals, in, not in, greater than, less than, between.</p>
+            <p class="hint">Operators: equals, not equals, in, not in, greater than, less than, between. For cost-allocated metrics, add Year or Year-Month.</p>
             <div class="tools">
               <button id="addFilter" class="btn" type="button">Add filter</button>
               <button id="clearFilter" class="btn" type="button">Clear all</button>
@@ -237,18 +237,35 @@
     const METRICS = [
       { id: "orders", name: "Orders", field: "order_id", table: "model_sales", aggregation: "countDistinct", format: "integer", decimals: 0, family: "Volume" },
       { id: "items", name: "Items", field: "item_id", table: "model_sales", aggregation: "count", format: "integer", decimals: 0, family: "Volume" },
+      { id: "avg_order_value", name: "AOV", field: "avg_order_value", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Volume", type: "calculated", dependencies: ["gmv", "orders"] },
       { id: "gmv", name: "GMV", field: "gmv", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
-      { id: "refund_amount", name: "Refund Amount", field: "refund_amount", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
-      { id: "delivery_cost", name: "Delivery Cost", field: "delivery_cost", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
-      { id: "vendor_discount", name: "Vendor Discount", field: "vendor_discount", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
-      { id: "commission", name: "Commission", field: "commission", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Revenue" },
-      { id: "satisfaction_commission", name: "Satisfaction Commission", field: "satisfaction_commission", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Revenue" },
-      { id: "service_fee", name: "Service Fee", field: "service_fee", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Fees" },
-      { id: "penalty", name: "Penalty", field: "penalty", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Fees" },
+      { id: "refund_amount", name: "Refunds", field: "refund_amount", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
+      { id: "delivery_cost", name: "Delivery Costs", field: "delivery_cost", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
+      { id: "vendor_discount", name: "Vendor Discounts", field: "vendor_discount", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "GMV & NMV" },
       { id: "nmv", name: "NMV", field: "nmv", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "GMV & NMV", type: "calculated", dependencies: ["gmv", "refund_amount", "delivery_cost", "vendor_discount"] },
-      { id: "main_revenue", name: "Main Revenue", field: "main_revenue", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Revenue", type: "calculated", dependencies: ["commission", "satisfaction_commission"] },
-      { id: "total_fee", name: "Total Fee", field: "total_fee", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Fees", type: "calculated", dependencies: ["service_fee", "penalty"] },
-      { id: "avg_order_value", name: "Avg Order Value", field: "avg_order_value", table: "calculated", aggregation: "custom", format: "currency", decimals: 2, family: "Volume", type: "calculated", dependencies: ["gmv", "orders"] }
+      { id: "commission", name: "Commission", field: "commission", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Revenue" },
+      { id: "ads", name: "Ads", field: "ads_rev", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Revenue" },
+      { id: "main_revenue", name: "Main Revenue", field: "main_revenue", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Revenue", type: "calculated", dependencies: ["commission", "ads"] },
+      { id: "cost_of_revenue", name: "Cost of Revenue", field: "cost_of_revenue", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Cost of Revenue" },
+      { id: "vouchers_crc", name: "Vouchers CRC", field: "vouchers_crc", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Cost of Revenue" },
+      { id: "general_cost_crc", name: "General Cost CRC", field: "general_cost_crc", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Cost of Revenue" },
+      { id: "marketing_crc", name: "Marketing CRC", field: "marketing_crc", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Cost of Revenue", type: "calculated", dependencies: ["vouchers_crc", "general_cost_crc"] },
+      { id: "vat", name: "VAT", field: "vat", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Cost of Revenue" },
+      { id: "pc1", name: "PC1", field: "pc1", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Profitability", type: "calculated", dependencies: ["main_revenue", "cost_of_revenue", "marketing_crc", "vat"] },
+      { id: "signup_fee", name: "Signup Fee", field: "signup_fee", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Fees" },
+      { id: "penalty", name: "Penalty Fee", field: "penalty", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Fees" },
+      { id: "service_fee", name: "Platform Fee", field: "service_fee", table: "model_sales", aggregation: "sum", format: "currency", decimals: 0, family: "Fees" },
+      { id: "total_fee", name: "Total Fee", field: "total_fee", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Fees", type: "calculated", dependencies: ["signup_fee", "penalty", "service_fee"] },
+      { id: "customer_support_costs", name: "Customer Support Costs", field: "customer_support_costs", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Operating Cost" },
+      { id: "pc2", name: "PC2", field: "pc2", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Profitability", type: "calculated", dependencies: ["pc1", "total_fee", "customer_support_costs"] },
+      { id: "brand_costs", name: "Brand Costs", field: "brand_costs", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Operating Cost" },
+      { id: "vouchers_nc", name: "Vouchers NC", field: "vouchers_nc", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Operating Cost" },
+      { id: "general_cost_nc", name: "General Cost NC", field: "general_cost_nc", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Operating Cost" },
+      { id: "marketing_nc", name: "Marketing NC", field: "marketing_nc", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Operating Cost", type: "calculated", dependencies: ["vouchers_nc", "general_cost_nc"] },
+      { id: "pc3", name: "PC3", field: "pc3", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Profitability", type: "calculated", dependencies: ["pc2", "brand_costs", "marketing_nc"] },
+      { id: "ga_costs", name: "G&A Costs", field: "ga_costs", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Operating Cost" },
+      { id: "hr_costs", name: "HR Costs", field: "hr_costs", table: "daily_cost_revenue", aggregation: "sum", format: "currency", decimals: 0, family: "Operating Cost" },
+      { id: "ebitda", name: "EBITDA", field: "ebitda", table: "calculated", aggregation: "custom", format: "currency", decimals: 0, family: "Profitability", type: "calculated", dependencies: ["pc3", "ga_costs", "hr_costs"] }
     ];
 
     const OPS = [
@@ -266,8 +283,8 @@
       filterOptions: {},
       rowIds: ["category_l1"],
       colId: "year_month",
-      metricIds: ["orders", "gmv", "nmv", "main_revenue"],
-      filters: [],
+      metricIds: ["orders", "gmv", "nmv", "main_revenue", "pc1", "ebitda"],
+      filters: [{ uid: "default_year", dimensionId: "year", operator: "equals", valueA: "1404", valueB: "" }],
       showTotals: true,
       comparison: false,
       report: null
