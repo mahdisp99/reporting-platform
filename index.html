@@ -96,10 +96,30 @@
     .tags { display: flex; flex-wrap: wrap; gap: 6px; }
     .tag { border: 1px solid #dbe4f1; border-radius: 999px; background: #f2f6fb; padding: 4px 8px; font-size: 11px; }
 
-    .sum { padding: 11px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
-    .card { border: 1px solid var(--line); border-radius: 11px; background: linear-gradient(135deg, #fff, #f9fbff); padding: 11px; animation: rise .22s ease both; }
-    .card .l { font-size: 12px; color: #64748b; margin-bottom: 7px; }
-    .card .v { font-size: 20px; font-weight: 800; line-height: 1.05; }
+    .sum {
+      padding: 8px 10px;
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 6px;
+      align-items: center;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+    }
+    .card {
+      flex: 0 0 auto;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: linear-gradient(135deg, #fff, #f9fbff);
+      padding: 6px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: max-content;
+      animation: rise .18s ease both;
+    }
+    .card .l { font-size: 11px; color: #64748b; margin: 0; }
+    .card .v { font-size: 13px; font-weight: 800; line-height: 1; white-space: nowrap; }
     .pos { color: var(--good); } .neg { color: var(--bad); }
 
     .table-top { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding: 10px 12px; background: #f8fafd; font-size: 12px; color: #475569; }
