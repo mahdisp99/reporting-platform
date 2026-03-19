@@ -603,12 +603,16 @@ def get_pnl_report(config: PnLConfigInput):
     metric_select_parts = [f"{BASE_METRIC_SQL[m]} AS m_{m}" for m in sorted(required_base_metrics)]
     requires_daily_cost = bool(required_base_metrics.intersection(DAILY_ALLOCATED_BASE_METRICS))
 
-    where_parts: list[str] = []
+    base_scope_where_parts: list[str] = []
+    post_allocation_where_parts: list[str] = []
     has_year_scope_filter = False
     for filter_obj in config.filters:
         condition = build_filter_condition(filter_obj)
         if condition:
-            where_parts.append(condition)
+            if filter_obj.dimension.id in {"year", "year_month", "month"}:
+                base_scope_where_parts.append(condition)
+            else:
+                post_allocation_where_parts.append(condition)
             if filter_obj.dimension.id in {"year", "year_month"}:
                 has_year_scope_filter = True
 
@@ -621,43 +625,55 @@ def get_pnl_report(config: PnLConfigInput):
             ),
         )
 
-    base_where_parts = ["ms.purchase_at IS NOT NULL", *where_parts]
+    base_where_parts = ["ms.purchase_at IS NOT NULL", *base_scope_where_parts]
     base_where_sql = " AND ".join(base_where_parts)
+    post_where_sql = (
+        " AND ".join(post_allocation_where_parts)
+        if post_allocation_where_parts
+        else "1 = 1"
+    )
 
     if requires_daily_cost:
         prepared_cte_sql = f"""
+        daily_item_count AS (
+          SELECT
+            b.gdate,
+            count() AS daily_item_count
+          FROM base b
+          GROUP BY b.gdate
+        ),
         daily_cost AS (
           SELECT
-            b.*,
-            count() OVER (PARTITION BY b.gdate) AS daily_item_count,
-            toFloat64(coalesce(cr.ads_rev, 0)) AS ads_rev_daily,
-            toFloat64(coalesce(cr.vendor_signup_rev, 0)) AS vendor_signup_rev_daily,
-            toFloat64(coalesce(cr.cost_of_revenue_cost, 0)) AS cost_of_revenue_cost_daily,
-            toFloat64(coalesce(cr.vat_cost, 0)) AS vat_cost_daily,
-            toFloat64(coalesce(cr.marketing_cost, 0)) AS marketing_cost_daily,
-            toFloat64(coalesce(cr.customer_support_cost, 0)) AS customer_support_cost_daily,
-            toFloat64(coalesce(cr.support_cost, 0)) AS support_cost_daily,
-            toFloat64(coalesce(cr.brand_cost, 0)) AS brand_cost_daily,
-            toFloat64(coalesce(cr.g_and_a_cost, 0)) AS g_and_a_cost_daily,
-            toFloat64(coalesce(cr.hr_cost, 0)) AS hr_cost_daily
-          FROM base b
+            dic.gdate,
+            toFloat64(coalesce(cr.ads_rev, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS ads_rev_per_item,
+            toFloat64(coalesce(cr.vendor_signup_rev, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS vendor_signup_rev_per_item,
+            toFloat64(coalesce(cr.cost_of_revenue_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS cost_of_revenue_cost_per_item,
+            toFloat64(coalesce(cr.vat_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS vat_cost_per_item,
+            toFloat64(coalesce(cr.marketing_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS marketing_cost_per_item,
+            toFloat64(coalesce(cr.customer_support_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS customer_support_cost_per_item,
+            toFloat64(coalesce(cr.support_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS support_cost_per_item,
+            toFloat64(coalesce(cr.brand_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS brand_cost_per_item,
+            toFloat64(coalesce(cr.g_and_a_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS g_and_a_cost_per_item,
+            toFloat64(coalesce(cr.hr_cost, 0)) / if(dic.daily_item_count = 0, 1, dic.daily_item_count) AS hr_cost_per_item
+          FROM daily_item_count dic
           LEFT JOIN {database}.daily_cost_revenue cr
-            ON b.gdate = cr.gregorian_date
+            ON dic.gdate = cr.gregorian_date
         ),
         prepared AS (
           SELECT
-            dc.*,
-            dc.ads_rev_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS ads_rev,
-            dc.vendor_signup_rev_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS vendor_signup_rev,
-            dc.cost_of_revenue_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS cost_of_revenue_cost,
-            dc.vat_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS vat_cost,
-            dc.marketing_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS marketing_cost,
-            dc.customer_support_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS customer_support_cost,
-            dc.support_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS support_cost,
-            dc.brand_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS brand_cost,
-            dc.g_and_a_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS g_and_a_cost,
-            dc.hr_cost_daily / if(dc.daily_item_count = 0, 1, dc.daily_item_count) AS hr_cost
-          FROM daily_cost dc
+            b.*,
+            coalesce(dc.ads_rev_per_item, 0) AS ads_rev,
+            coalesce(dc.vendor_signup_rev_per_item, 0) AS vendor_signup_rev,
+            coalesce(dc.cost_of_revenue_cost_per_item, 0) AS cost_of_revenue_cost,
+            coalesce(dc.vat_cost_per_item, 0) AS vat_cost,
+            coalesce(dc.marketing_cost_per_item, 0) AS marketing_cost,
+            coalesce(dc.customer_support_cost_per_item, 0) AS customer_support_cost,
+            coalesce(dc.support_cost_per_item, 0) AS support_cost,
+            coalesce(dc.brand_cost_per_item, 0) AS brand_cost,
+            coalesce(dc.g_and_a_cost_per_item, 0) AS g_and_a_cost,
+            coalesce(dc.hr_cost_per_item, 0) AS hr_cost
+          FROM base b
+          LEFT JOIN daily_cost dc ON b.gdate = dc.gdate
         )
         """
     else:
@@ -713,7 +729,7 @@ def get_pnl_report(config: PnLConfigInput):
           {col_sort_expr} AS col_sort,
           {", ".join(metric_select_parts)}
         FROM prepared ms
-        WHERE 1 = 1
+        WHERE {post_where_sql}
         GROUP BY {", ".join(row_group_parts + [col_expr, col_sort_expr])}
         ORDER BY col_sort, {", ".join(row_group_parts)}
     """
