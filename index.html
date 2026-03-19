@@ -1,13 +1,431 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reporting Platform | P\u0026L Generator</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reporting Platform - Live PnL</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Segoe UI, Arial, sans-serif; background: #f4f6fb; color: #1f2937; }
+    .page { max-width: 1600px; margin: 0 auto; padding: 16px; }
+    .header { margin-bottom: 12px; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .header p { margin: 6px 0 0; color: #6b7280; }
+    .layout { display: grid; grid-template-columns: 340px 1fr; gap: 14px; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+    .panel { background: #fff; border: 1px solid #dbe2ec; border-radius: 10px; }
+    .panel-head { padding: 12px 14px; border-bottom: 1px solid #e5e7eb; font-weight: 700; }
+    .panel-body { padding: 12px 14px; }
+    .group { margin-bottom: 12px; }
+    .group label { display: block; font-size: 12px; color: #374151; margin-bottom: 5px; font-weight: 600; }
+    .group select, .group input { width: 100%; padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 12px; background: #fff; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 210px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; }
+    .metrics label { font-size: 12px; display: flex; align-items: center; gap: 6px; margin: 0; }
+    .actions { display: flex; gap: 8px; }
+    .btn { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; cursor: pointer; font-size: 12px; }
+    .btn.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .btn:disabled { opacity: 0.6; cursor: wait; }
+    .status { margin-bottom: 10px; font-size: 12px; color: #6b7280; }
+    .error { color: #b91c1c; margin-bottom: 10px; font-size: 12px; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 8px; margin-bottom: 10px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: #f9fafb; }
+    .card .k { font-size: 11px; color: #6b7280; }
+    .card .v { font-size: 15px; font-weight: 700; margin-top: 4px; }
+    .table-wrap { overflow: auto; max-height: 74vh; border: 1px solid #e5e7eb; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; }
+    th, td { border-bottom: 1px solid #f1f5f9; padding: 7px 8px; white-space: nowrap; text-align: left; }
+    th { position: sticky; top: 0; background: #f8fafc; z-index: 2; }
+    tr.total { background: #eff6ff; font-weight: 700; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .meta { margin-top: 8px; font-size: 11px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1>Live Profit and Loss Report</h1>
+      <p>Source: ClickHouse model_sales via /api/pnl endpoints</p>
+    </div>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-head">Configuration</div>
+        <div class="panel-body">
+          <div class="grid2">
+            <div class="group">
+              <label for="rowDim">Row Dimension</label>
+              <select id="rowDim"></select>
+            </div>
+            <div class="group">
+              <label for="colDim">Column Dimension</label>
+              <select id="colDim"></select>
+            </div>
+          </div>
+
+          <div class="group">
+            <label>Metrics</label>
+            <div id="metricList" class="metrics"></div>
+          </div>
+
+          <div class="group">
+            <label for="fYear">Year</label>
+            <select id="fYear"><option value="">All</option></select>
+          </div>
+
+          <div class="grid2">
+            <div class="group">
+              <label for="fYmFrom">Year-Month From</label>
+              <select id="fYmFrom"><option value="">Any</option></select>
+            </div>
+            <div class="group">
+              <label for="fYmTo">Year-Month To</label>
+              <select id="fYmTo"><option value="">Any</option></select>
+            </div>
+          </div>
+
+          <div class="group">
+            <label for="fCat1">Category L1</label>
+            <select id="fCat1"><option value="">All</option></select>
+          </div>
+
+          <div class="group">
+            <label for="fCat2">Category L2</label>
+            <select id="fCat2"><option value="">All</option></select>
+          </div>
+
+          <div class="grid2">
+            <div class="group">
+              <label for="fCustProv">Customer Province</label>
+              <select id="fCustProv"><option value="">All</option></select>
+            </div>
+            <div class="group">
+              <label for="fVendProv">Vendor Province</label>
+              <select id="fVendProv"><option value="">All</option></select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="btnRun" class="btn primary">Run Report</button>
+            <button id="btnReset" class="btn">Reset</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">Report</div>
+        <div class="panel-body">
+          <div id="status" class="status">Loading filter options...</div>
+          <div id="error" class="error" style="display:none"></div>
+          <div id="summary" class="summary"></div>
+          <div class="table-wrap">
+            <table id="reportTable"></table>
+          </div>
+          <div id="meta" class="meta"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const DIMENSIONS = {
+      category_l1: { id: 'category_l1', name: 'Category L1', field: 'cat_lvl1_title', table: 'model_sales', level: 0 },
+      category_l2: { id: 'category_l2', name: 'Category L2', field: 'cat_lvl2_title', table: 'model_sales', level: 1, parentDimension: 'category_l1' },
+      category_l3: { id: 'category_l3', name: 'Category L3', field: 'cat_lvl3_title', table: 'model_sales', level: 2, parentDimension: 'category_l2' },
+      customer_province: { id: 'customer_province', name: 'Customer Province', field: 'customer_province_title', table: 'model_sales', level: 0 },
+      vendor_province: { id: 'vendor_province', name: 'Vendor Province', field: 'vendor_province_title', table: 'model_sales', level: 0 },
+      customer_type: { id: 'customer_type', name: 'Customer Type', field: 'customer_type_id', table: 'model_sales', level: 0 },
+      vendor_type: { id: 'vendor_type', name: 'Vendor Type', field: 'vendor_type_id', table: 'model_sales', level: 0 },
+      year: { id: 'year', name: 'Year', field: 'persian_year', table: 'model_sales', level: 0 },
+      year_month: { id: 'year_month', name: 'Year-Month', field: 'persiandate_purchase_yearmonth', table: 'model_sales', level: 1, parentDimension: 'year' },
+      month: { id: 'month', name: 'Month', field: 'persian_month', table: 'model_sales', level: 2, parentDimension: 'year_month' }
+    };
+
+    const METRICS = {
+      orders: { id: 'orders', name: 'Orders', field: 'order_id', table: 'model_sales', aggregation: 'countDistinct', format: 'integer', decimals: 0 },
+      items: { id: 'items', name: 'Items', field: 'item_id', table: 'model_sales', aggregation: 'count', format: 'integer', decimals: 0 },
+      gmv: { id: 'gmv', name: 'GMV', field: 'gmv', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      refund_amount: { id: 'refund_amount', name: 'Refund Amount', field: 'refund_amount', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      delivery_cost: { id: 'delivery_cost', name: 'Delivery Cost', field: 'delivery_cost', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      vendor_discount: { id: 'vendor_discount', name: 'Vendor Discount', field: 'vendor_discount', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      commission: { id: 'commission', name: 'Commission', field: 'commission', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      satisfaction_commission: { id: 'satisfaction_commission', name: 'Satisfaction Commission', field: 'satisfaction_commission', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      service_fee: { id: 'service_fee', name: 'Service Fee', field: 'service_fee', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      penalty: { id: 'penalty', name: 'Penalty', field: 'penalty', table: 'model_sales', aggregation: 'sum', format: 'currency', decimals: 0 },
+      nmv: { id: 'nmv', name: 'NMV', field: 'nmv', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 0, dependencies: ['gmv','refund_amount','delivery_cost','vendor_discount'] },
+      main_revenue: { id: 'main_revenue', name: 'Main Revenue', field: 'main_revenue', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 0, dependencies: ['commission','satisfaction_commission'] },
+      total_fee: { id: 'total_fee', name: 'Total Fee', field: 'total_fee', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 0, dependencies: ['service_fee','penalty'] },
+      avg_order_value: { id: 'avg_order_value', name: 'Avg Order Value', field: 'avg_order_value', table: 'calculated', aggregation: 'custom', type: 'calculated', format: 'currency', decimals: 2, dependencies: ['gmv','orders'] }
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const state = {
+      options: {},
+      report: null,
+      defaultMetrics: ['orders', 'gmv', 'nmv', 'main_revenue']
+    };
+
+    function setStatus(message) { $('status').textContent = message; }
+    function setError(message) {
+      const box = $('error');
+      if (!message) { box.style.display = 'none'; box.textContent = ''; return; }
+      box.style.display = 'block';
+      box.textContent = message;
+    }
+
+    function fillSelect(id, values) {
+      const select = $(id);
+      const first = select.querySelector('option');
+      select.innerHTML = '';
+      if (first) select.appendChild(first);
+      for (const value of values || []) {
+        const option = document.createElement('option');
+        option.value = String(value);
+        option.textContent = String(value);
+        select.appendChild(option);
+      }
+    }
+
+    function selectedMetrics() {
+      return Array.from(document.querySelectorAll('#metricList input[type=checkbox]:checked'))
+        .map((input) => METRICS[input.value]);
+    }
+
+    function renderMetricList() {
+      const holder = $('metricList');
+      holder.innerHTML = '';
+      Object.values(METRICS).forEach((metric) => {
+        const id = `m_${metric.id}`;
+        const label = document.createElement('label');
+        label.innerHTML = `<input id="${id}" type="checkbox" value="${metric.id}" ${state.defaultMetrics.includes(metric.id) ? 'checked' : ''}> ${metric.name}`;
+        holder.appendChild(label);
+      });
+    }
+
+    function renderDimensionSelects() {
+      const row = $('rowDim');
+      const col = $('colDim');
+      row.innerHTML = '';
+      col.innerHTML = '';
+
+      ['category_l1','category_l2','category_l3','customer_province','vendor_province','customer_type','vendor_type','year'].forEach((id) => {
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = DIMENSIONS[id].name;
+        row.appendChild(option);
+      });
+      row.value = 'category_l1';
+
+      ['year_month','year','month'].forEach((id) => {
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = DIMENSIONS[id].name;
+        col.appendChild(option);
+      });
+      col.value = 'year_month';
+    }
+
+    function buildFilters() {
+      const filters = [];
+      const pushEquals = (dimensionId, value) => {
+        if (!value) return;
+        filters.push({ dimension: DIMENSIONS[dimensionId], operator: 'equals', value });
+      };
+
+      pushEquals('year', $('fYear').value);
+      pushEquals('category_l1', $('fCat1').value);
+      pushEquals('category_l2', $('fCat2').value);
+      pushEquals('customer_province', $('fCustProv').value);
+      pushEquals('vendor_province', $('fVendProv').value);
+
+      const ymFrom = $('fYmFrom').value;
+      const ymTo = $('fYmTo').value;
+      if (ymFrom && ymTo) {
+        filters.push({
+          dimension: DIMENSIONS.year_month,
+          operator: 'between',
+          value: [ymFrom, ymTo]
+        });
+      }
+      return filters;
+    }
+
+    async function loadFilterOptions() {
+      setStatus('Loading filter options...');
+      setError('');
+      const res = await fetch('/api/pnl/filter-options');
+      if (!res.ok) throw new Error(`Filter options failed: ${res.status}`);
+      const payload = await res.json();
+      state.options = payload.options || {};
+
+      fillSelect('fYear', state.options.year || []);
+      fillSelect('fYmFrom', state.options.year_month || []);
+      fillSelect('fYmTo', state.options.year_month || []);
+      fillSelect('fCat1', state.options.category_l1 || []);
+      fillSelect('fCat2', state.options.category_l2 || []);
+      fillSelect('fCustProv', state.options.customer_province || []);
+      fillSelect('fVendProv', state.options.vendor_province || []);
+
+      setStatus('Ready');
+    }
+
+    function formatCell(value) {
+      if (value === null || value === undefined) return '-';
+      if (typeof value === 'number') return value.toLocaleString('en-US');
+      return String(value);
+    }
+
+    function renderSummary(report) {
+      const root = $('summary');
+      root.innerHTML = '';
+      if (!report || !report.rows || report.rows.length === 0) return;
+      const totalRow = report.rows.find((row) => row.isTotal);
+      if (!totalRow) return;
+      for (const metric of report.config.metrics) {
+        const cell = totalRow.cells[`total_${metric.id}`];
+        if (!cell) continue;
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<div class="k">${metric.name}</div><div class="v">${cell.formattedValue}</div>`;
+        root.appendChild(card);
+      }
+    }
+
+    function renderTable(report) {
+      const table = $('reportTable');
+      table.innerHTML = '';
+      if (!report || !report.rows || report.rows.length === 0) return;
+
+      const thead = document.createElement('thead');
+      const row1 = document.createElement('tr');
+      const row2 = document.createElement('tr');
+
+      const dimNames = report.config.rowDimensions.map((d) => d.name).join(' / ');
+      row1.innerHTML += `<th colspan="${report.config.rowDimensions.length}">${dimNames}</th>`;
+      report.columns.forEach((column) => {
+        row1.innerHTML += `<th colspan="${report.config.metrics.length}">${column.title}</th>`;
+      });
+      report.config.rowDimensions.forEach((dimension) => {
+        row2.innerHTML += `<th>${dimension.name}</th>`;
+      });
+      report.columns.forEach((column) => {
+        report.config.metrics.forEach((metric) => {
+          row2.innerHTML += `<th>${metric.name}</th>`;
+        });
+      });
+      thead.appendChild(row1);
+      thead.appendChild(row2);
+
+      const tbody = document.createElement('tbody');
+      report.rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        if (row.isTotal) tr.className = 'total';
+
+        report.config.rowDimensions.forEach((dimension) => {
+          const td = document.createElement('td');
+          td.textContent = String(row.dimensions[dimension.id] ?? '');
+          tr.appendChild(td);
+        });
+
+        report.columns.forEach((column) => {
+          report.config.metrics.forEach((metric) => {
+            const key = `${column.key}_${metric.id}`;
+            const cell = row.cells[key];
+            const td = document.createElement('td');
+            td.className = 'num';
+            td.textContent = cell ? (cell.formattedValue || formatCell(cell.value)) : '-';
+            tr.appendChild(td);
+          });
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(thead);
+      table.appendChild(tbody);
+    }
+
+    async function runReport() {
+      const metrics = selectedMetrics();
+      if (metrics.length === 0) {
+        setError('Select at least one metric.');
+        return;
+      }
+
+      const config = {
+        rowDimensions: [DIMENSIONS[$('rowDim').value]],
+        columnDimensions: [DIMENSIONS[$('colDim').value]],
+        metrics,
+        filters: buildFilters(),
+        comparison: { enabled: false, type: 'yoy' },
+        options: {
+          showTotals: true,
+          showSubtotals: false,
+          expandAll: false,
+          collapseLevel: 0,
+          currencyCode: 'IRR'
+        }
+      };
+
+      const runButton = $('btnRun');
+      runButton.disabled = true;
+      setStatus('Running query...');
+      setError('');
+
+      try {
+        const res = await fetch('/api/pnl/report', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        });
+        if (!res.ok) {
+          let detail = `${res.status}`;
+          try {
+            const body = await res.json();
+            detail = body.detail || detail;
+          } catch (_) {}
+          throw new Error(`Report failed: ${detail}`);
+        }
+        state.report = await res.json();
+        renderSummary(state.report);
+        renderTable(state.report);
+        $('meta').textContent = `Generated: ${new Date(state.report.metadata.generatedAt).toLocaleString()} | Rows: ${state.report.metadata.totalRows}`;
+        setStatus('Done');
+      } catch (error) {
+        setError(error.message || String(error));
+        setStatus('Failed');
+      } finally {
+        runButton.disabled = false;
+      }
+    }
+
+    function resetControls() {
+      $('rowDim').value = 'category_l1';
+      $('colDim').value = 'year_month';
+      document.querySelectorAll('#metricList input[type=checkbox]').forEach((input) => {
+        input.checked = state.defaultMetrics.includes(input.value);
+      });
+      ['fYear','fYmFrom','fYmTo','fCat1','fCat2','fCustProv','fVendProv'].forEach((id) => {
+        $(id).value = '';
+      });
+    }
+
+    $('btnRun').addEventListener('click', runReport);
+    $('btnReset').addEventListener('click', () => {
+      resetControls();
+      setError('');
+      setStatus('Ready');
+    });
+
+    (async function init() {
+      renderDimensionSelects();
+      renderMetricList();
+      await loadFilterOptions();
+      await runReport();
+    })().catch((error) => {
+      setError(error.message || String(error));
+      setStatus('Init failed');
+    });
+  </script>
+</body>
 </html>

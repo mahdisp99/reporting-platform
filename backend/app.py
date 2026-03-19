@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
 from datetime import datetime
 from typing import Any
+from urllib import parse, request
+from urllib.error import HTTPError, URLError
 
-import clickhouse_connect
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+try:
+    import clickhouse_connect  # type: ignore
+except Exception:
+    clickhouse_connect = None
 
 
 class DimensionInput(BaseModel):
@@ -78,22 +85,96 @@ def get_database_name() -> str:
     return database
 
 
+class QueryResult:
+    def __init__(self, column_names: list[str], result_rows: list[list[Any]]):
+        self.column_names = column_names
+        self.result_rows = result_rows
+
+
+class SimpleClickHouseHttpClient:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        username: str,
+        password: str,
+        database: str,
+        secure: bool = False,
+        timeout: int = 120,
+    ):
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.database = database
+        self.scheme = "https" if secure else "http"
+        self.timeout = timeout
+
+    def query(self, sql: str) -> QueryResult:
+        query_sql = sql.strip().rstrip(";")
+        if " FORMAT " not in query_sql.upper():
+            query_sql = f"{query_sql} FORMAT JSON"
+
+        qs = parse.urlencode({"database": self.database})
+        url = f"{self.scheme}://{self.host}:{self.port}/?{qs}"
+        req = request.Request(
+            url=url,
+            data=query_sql.encode("utf-8"),
+            method="POST",
+            headers={
+                "Content-Type": "text/plain; charset=utf-8",
+                "X-ClickHouse-User": self.username,
+                "X-ClickHouse-Key": self.password,
+            },
+        )
+        try:
+            with request.urlopen(req, timeout=self.timeout) as resp:
+                raw = resp.read().decode("utf-8")
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="ignore") if exc.fp else str(exc)
+            raise RuntimeError(f"ClickHouse HTTP error {exc.code}: {body}") from exc
+        except URLError as exc:
+            raise RuntimeError(f"ClickHouse connection error: {exc}") from exc
+
+        payload = json.loads(raw)
+        meta = payload.get("meta", [])
+        column_names = [col.get("name", "") for col in meta]
+        data_rows = payload.get("data", [])
+        result_rows = [
+            [row.get(col) for col in column_names]
+            for row in data_rows
+        ]
+        return QueryResult(column_names=column_names, result_rows=result_rows)
+
+
 def get_client():
     host = os.getenv("BASALAM_CH_HOST", "proxy.bk0i.basalam.dev")
     port = int(os.getenv("BASALAM_CH_PORT", "39674"))
     username = get_env("BASALAM_CH_USER", os.getenv("CH_USER", ""))
     password = get_env("BASALAM_CH_PASSWORD", os.getenv("CH_PASSWORD", ""))
     database = get_database_name()
+    secure = os.getenv("BASALAM_CH_SECURE", "false").lower() in {"1", "true", "yes"}
 
-    return clickhouse_connect.get_client(
+    if clickhouse_connect is not None:
+        return clickhouse_connect.get_client(
+            host=host,
+            port=port,
+            username=username,
+            password=password,
+            database=database,
+            secure=secure,
+            connect_timeout=20,
+            send_receive_timeout=120,
+        )
+
+    return SimpleClickHouseHttpClient(
         host=host,
         port=port,
         username=username,
         password=password,
         database=database,
-        secure=False,
-        connect_timeout=20,
-        send_receive_timeout=120,
+        secure=secure,
+        timeout=120,
     )
 
 
